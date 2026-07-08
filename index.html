@@ -64,6 +64,7 @@
   .field:last-child { margin-bottom:0; }
   label { display:block; font-size:13px; font-weight:500; color:var(--grey-700); margin-bottom:5px; }
   label .req { color:var(--red); margin-left:2px; }
+  label .opt { color:var(--grey-500); font-weight:400; font-size:11px; margin-left:4px; }
   input[type="text"], input[type="number"], input[type="tel"], input[type="date"], select {
     width:100%; padding:11px 13px; border:1.5px solid var(--grey-300); border-radius:8px;
     font-size:15px; font-family:inherit; color:var(--grey-900); background:var(--white); appearance:none; -webkit-appearance:none;
@@ -114,7 +115,8 @@
   .chip-ready { background:var(--green-pale); color:var(--green-dark); }
   .chip-norate { background:var(--red-pale); color:var(--red); }
 
-  .goat-row { background:var(--white); border-radius:10px; padding:12px; margin-bottom:8px; box-shadow:var(--shadow); }
+  .goat-row { background:var(--white); border-radius:10px; padding:12px; margin-bottom:8px; box-shadow:var(--shadow); cursor:pointer; }
+  .goat-row:active { background:var(--grey-100); }
   .goat-row-top { display:flex; align-items:center; gap:10px; }
   .goat-thumb { width:38px; height:38px; border-radius:8px; background:var(--grey-100); display:flex; align-items:center; justify-content:center; font-size:17px; flex-shrink:0; overflow:hidden; }
   .goat-info { flex:1; min-width:0; }
@@ -170,8 +172,22 @@
   .ai-quality-row.hidden { display:none; }
   .ai-quality-label { font-size:12px; color:var(--amber); flex:1; }
   .ai-accept-btn { padding:6px 12px; background:var(--amber); color:white; border:none; border-radius:6px; font-size:12px; font-family:inherit; font-weight:700; cursor:pointer; }
+  /* Sits right under the Quality dropdown itself, not just in the photo card
+     up top — so it's still visible however far you've scrolled, and stays
+     visible even after you change the dropdown away from what AI suggested. */
+  .ai-note { font-size:11.5px; color:var(--amber); margin-top:5px; }
+  .ai-note.hidden { display:none; }
   @keyframes spin { to { transform:rotate(360deg); } }
   .spinner { display:inline-block; width:14px; height:14px; border:2px solid var(--grey-300); border-top-color:var(--amber); border-radius:50%; animation:spin 0.8s linear infinite; vertical-align:middle; margin-right:4px; }
+
+  /* Goat detail — pickup/mandi weight events */
+  .weight-event { background:var(--white); border-radius:10px; padding:14px; margin-bottom:10px; box-shadow:var(--shadow); }
+  .we-header { display:flex; justify-content:space-between; align-items:center; margin-bottom:10px; }
+  .we-title { font-size:14px; font-weight:700; color:var(--grey-700); }
+  .we-done { font-size:12px; color:var(--green-mid); font-weight:600; }
+  .we-pending { font-size:12px; color:var(--grey-500); }
+  .shrinkage-banner { background:var(--amber-pale); border:1.5px solid var(--amber); border-radius:8px; padding:10px 14px; margin-top:10px; display:flex; justify-content:space-between; align-items:center; }
+  .locked-note { font-size:12.5px; color:var(--grey-500); background:var(--grey-100); border-radius:8px; padding:10px 12px; }
 
   /* 'both' weight mode: scale + tape shown together with the lower one called out */
   .eff-weight-row { display:flex; align-items:center; justify-content:space-between; background:var(--green-pale); border-radius:8px; padding:10px 13px; margin-top:10px; }
@@ -235,13 +251,31 @@
     <div><div class="scr-title" id="cdVillage">—</div><div class="scr-sub" id="cdMeta">—</div></div>
   </div>
   <div class="rate-status" id="cdRateStatus">—</div>
+  <div class="rate-status ok" id="cdCompletedStatus" style="display:none;" data-en="✓ Camp completed" data-hi="✓ शिविर पूरा हुआ">✓ शिविर पूरा हुआ</div>
   <div class="table-summary" id="cdSummary">
     <div class="summary-item"><strong id="cdHhCount">0</strong><span data-en="Homes" data-hi="घर">घर</span></div>
     <div class="summary-item"><strong id="cdGoatCount">0</strong><span data-en="Animals" data-hi="पशु">पशु</span></div>
     <div class="summary-item"><strong id="cdInterestedValue">₹0</strong><span data-en="Interested value" data-hi="इच्छुक मूल्य">इच्छुक मूल्य</span></div>
   </div>
   <div id="hhList"><div class="empty-state" data-en="No households added yet" data-hi="अभी कोई घर नहीं जोड़ा गया">अभी कोई घर नहीं जोड़ा गया</div></div>
-  <button class="btn-primary" onclick="showScreen('newhousehold')" style="margin-top:6px;">➕ <span data-en="Add household" data-hi="घर जोड़ें">घर जोड़ें</span></button>
+  <button class="btn-primary" id="cdAddHhBtn" onclick="showScreen('newhousehold')" style="margin-top:6px;">➕ <span data-en="Add household" data-hi="घर जोड़ें">घर जोड़ें</span></button>
+  <button class="btn-secondary" id="cdCompleteCampBtn" onclick="showScreen('campcomplete')">✅ <span data-en="Complete camp" data-hi="शिविर पूरा करें">शिविर पूरा करें</span></button>
+</div>
+
+<!-- ══ SCREEN: COMPLETE CAMP (review) ══ -->
+<div class="screen" id="screen-campcomplete">
+  <div class="back-row"><div class="back-ic" onclick="showScreen('campdetail')">←</div><div><div class="scr-title" data-en="Complete camp" data-hi="शिविर पूरा करें">शिविर पूरा करें</div><div class="scr-sub" id="ccVillage">—</div></div></div>
+  <div class="card">
+    <div class="card-title" data-en="Final tally" data-hi="अंतिम गिनती">अंतिम गिनती</div>
+    <div id="ccStats"></div>
+  </div>
+  <div class="card">
+    <div class="field"><label data-en="Learnings (optional)" data-hi="सीख (वैकल्पिक)">सीख (वैकल्पिक)</label>
+      <textarea id="ccLearnings" rows="3" style="width:100%; padding:11px 13px; border:1.5px solid var(--grey-300); border-radius:8px; font-size:14px; font-family:inherit;" data-ph-en="Anything worth remembering for the next camp?" data-ph-hi="अगले शिविर के लिए कुछ याद रखने लायक?" placeholder="अगले शिविर के लिए कुछ याद रखने लायक?"></textarea>
+    </div>
+  </div>
+  <button class="btn-primary" onclick="completeCamp()">✅ <span data-en="Complete camp" data-hi="शिविर पूरा करें">शिविर पूरा करें</span></button>
+  <button class="btn-secondary" onclick="showScreen('campdetail')">🕓 <span data-en="Continue later" data-hi="बाद में जारी रखें">बाद में जारी रखें</span></button>
 </div>
 
 <!-- ══ SCREEN: NEW HOUSEHOLD ══ -->
@@ -266,6 +300,54 @@
   </div>
   <div id="goatList"><div class="empty-state" data-en="No animals added yet" data-hi="अभी कोई पशु नहीं जोड़ा गया">अभी कोई पशु नहीं जोड़ा गया</div></div>
   <button class="btn-primary" onclick="showScreen('newgoat')" style="margin-top:6px;">➕ <span data-en="Add animal" data-hi="पशु जोड़ें">पशु जोड़ें</span></button>
+</div>
+
+<!-- ══ SCREEN: GOAT DETAIL (pickup + mandi weights) ══ -->
+<div class="screen" id="screen-goatdetail">
+  <div class="back-row"><div class="back-ic" onclick="showScreen('householddetail')">←</div>
+    <div><div class="scr-title" data-en="Animal detail" data-hi="पशु विवरण">पशु विवरण</div><div class="scr-sub" id="gdSub">—</div></div>
+  </div>
+
+  <div class="card" id="gdInfoCard">
+    <div class="card-title" data-en="Recorded at the camp" data-hi="शिविर में दर्ज जानकारी">शिविर में दर्ज जानकारी</div>
+    <div id="gdInfoContent"></div>
+  </div>
+
+  <!-- Pickup-day weight — only relevant once the household has said Interested -->
+  <div id="gdPickupSection">
+    <div class="weight-event" id="wePickup">
+      <div class="we-header">
+        <div>
+          <div class="we-title">🚛 <span data-en="Pickup day weight" data-hi="पिकअप दिन वजन">पिकअप दिन वजन</span></div>
+          <div style="font-size:11px; color:var(--grey-500);" data-en="Weight on the day the animal is picked up" data-hi="पशु ले जाने के दिन का वजन">पशु ले जाने के दिन का वजन</div>
+        </div>
+        <div id="wePickupStatus" class="we-pending">—</div>
+      </div>
+      <div id="wePickupForm"></div>
+    </div>
+  </div>
+
+  <!-- Mandi weight + sale price — admin only -->
+  <div id="gdMandiSection">
+    <div class="weight-event" id="weMandi">
+      <div class="we-header">
+        <div>
+          <div class="we-title">🏪 <span data-en="Mandi weight & sale price" data-hi="मंडी वजन और बिक्री मूल्य">मंडी वजन और बिक्री मूल्य</span></div>
+          <div style="font-size:11px; color:var(--grey-500);" data-en="Recorded by admin at the mandi" data-hi="मंडी में admin द्वारा दर्ज">मंडी में admin द्वारा दर्ज</div>
+        </div>
+        <div id="weMandiStatus" class="we-pending">—</div>
+      </div>
+      <div id="weMandiForm"></div>
+    </div>
+  </div>
+
+  <div class="shrinkage-banner" id="shrinkageBanner" style="display:none;">
+    <div>
+      <div style="font-size:12px; color:var(--amber); font-weight:600;" id="shrinkageLabel" data-en="Weight loss (shrinkage)" data-hi="वजन में कमी (Shrinkage)">वजन में कमी (Shrinkage)</div>
+      <div style="font-size:11px; color:var(--grey-700);" id="shrinkageLegLabel">—</div>
+    </div>
+    <div style="font-size:22px; font-weight:700; color:var(--amber);" id="shrinkageVal">—%</div>
+  </div>
 </div>
 
 <!-- ══ SCREEN: NEW GOAT ══ -->
@@ -334,6 +416,7 @@
           <option value="2nd" data-en="Second (2nd)" data-hi="दूसरी (2nd)">दूसरी (2nd)</option>
           <option value="3rd" data-en="Third (3rd)" data-hi="तीसरी (3rd)">तीसरी (3rd)</option>
         </select>
+        <div class="ai-note hidden" id="aiQualityNote">—</div>
       </div>
     </div>
 
@@ -460,6 +543,27 @@
   </div>
 
   <div class="card">
+    <div class="card-title" data-en="Admin" data-hi="Admin">Admin</div>
+    <div id="adminLockedBox">
+      <p style="font-size:12.5px; color:var(--grey-500); margin-bottom:10px;" data-en="Enter the admin PIN to record mandi weight/sale price and see the admin dashboard." data-hi="मंडी वजन/बिक्री मूल्य दर्ज करने और admin dashboard देखने के लिए PIN डालें।">मंडी वजन/बिक्री मूल्य दर्ज करने और admin dashboard देखने के लिए PIN डालें।</p>
+      <div class="field" style="display:flex; gap:8px; margin-bottom:0;">
+        <input type="tel" id="adminPinInput" data-ph-en="PIN" data-ph-hi="PIN" placeholder="PIN" style="flex:1;">
+        <button class="btn-small" onclick="unlockAdmin()" data-en="Unlock" data-hi="अनलॉक करें">अनलॉक करें</button>
+      </div>
+    </div>
+    <div id="adminUnlockedBox" style="display:none;">
+      <div class="settings-row">
+        <div>
+          <div class="settings-label" data-en="Admin mode is on" data-hi="Admin मोड चालू है">Admin मोड चालू है</div>
+          <div class="settings-sub" data-en="on this device" data-hi="इस डिवाइस पर">इस डिवाइस पर</div>
+        </div>
+        <button class="btn-small" style="color:var(--red); border-color:var(--red);" onclick="lockAdmin()" data-en="Lock" data-hi="लॉक करें">लॉक करें</button>
+      </div>
+      <button class="btn-secondary" style="margin-top:10px;" onclick="showScreen('admindashboard')" data-en="Open admin dashboard" data-hi="Admin dashboard खोलें">Admin dashboard खोलें</button>
+    </div>
+  </div>
+
+  <div class="card">
     <div class="card-title" data-en="Data" data-hi="डेटा">डेटा</div>
     <div class="settings-row">
       <div>
@@ -483,6 +587,12 @@
       <button class="btn-small" style="color:var(--red); border-color:var(--red);" onclick="clearAllData()" data-en="Erase" data-hi="मिटाएं">मिटाएं</button>
     </div>
   </div>
+</div>
+
+<!-- ══ SCREEN: ADMIN DASHBOARD ══ -->
+<div class="screen" id="screen-admindashboard">
+  <div class="back-row"><div class="back-ic" onclick="showScreen('settings')">←</div><div><div class="scr-title" data-en="Admin dashboard" data-hi="Admin Dashboard">Admin Dashboard</div><div class="scr-sub" data-en="All PS, last 15 days" data-hi="सभी PS, पिछले 15 दिन">सभी PS, पिछले 15 दिन</div></div></div>
+  <div id="adminDashboardBody"><div class="empty-state" data-en="Loading…" data-hi="लोड हो रहा है…">लोड हो रहा है…</div></div>
 </div>
 
 <div class="success-toast" id="toast"></div>
@@ -562,6 +672,13 @@ const HISTORY_DAYS = 15;
 // endpoint, not tied to one frontend). The app never sees the key itself —
 // it just calls this URL with 3 photos and gets back a suggested quality.
 const CLAUDE_PROXY_URL = "https://script.google.com/macros/s/AKfycbxBS2EvErzUMkbuVHCbEhRN2kChtlVIexXZHFPsALKfK6zF3TA7idhxVt7a09VVTZJS/exec";
+// Unlocks mandi-weight entry and the admin dashboard on a device — entered
+// once in Settings, remembered on that device until "Lock" is tapped or
+// local data is cleared. This is NOT real security (anyone who reads this
+// file's source can find it) — it's a soft gate matching the same trust
+// model as the rest of this pilot-scale app (one shared key, no per-user
+// login). Change this before go-live to something only ops knows.
+const ADMIN_PIN = "1234";
 
 const sb = (SUPABASE_URL.startsWith("http")) ? window.supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY) : null;
 
@@ -615,6 +732,9 @@ function applyLang() {
   if (activeScreen.id === 'screen-newgoat') { recalcAddGoat(); renderGoatProgress(); }
   if (activeScreen.id === 'screen-calc') recalcCalc();
   if (activeScreen.id === 'screen-settings') renderSettings();
+  if (activeScreen.id === 'screen-goatdetail') renderGoatDetail();
+  if (activeScreen.id === 'screen-admindashboard') renderAdminDashboard();
+  if (activeScreen.id === 'screen-campcomplete') renderCampCompleteReview();
 }
 
 /* ═══════════════════════ STATE / STORAGE ═══════════════════════ */
@@ -628,10 +748,11 @@ let rateCache = store.get('sc_rate_cache', {});
 let regionsCache = store.get('sc_regions_cache', []);
 
 let sex = null, response = null;
-let currentCampId = null, currentHouseholdId = null;
+let currentCampId = null, currentHouseholdId = null, currentGoatId = null;
 let calcSex = null;
 let capturedPhotos = {}; // { 1: Blob, 2: Blob, 3: Blob } for the goat form currently open
 let aiSuggestedQuality = null;
+let isAdmin = store.get('sc_is_admin', false);
 
 /* ═══════════════════════ INSTALL / OFFLINE (service worker) ═══════════════════════
    Caches the app shell (this page, pricing.js, the vendored Supabase library,
@@ -755,6 +876,9 @@ function showScreen(name) {
   if (name === 'campdetail') renderCampDetail();
   if (name === 'householddetail') renderHouseholdDetail();
   if (name === 'newgoat') prepAddGoat();
+  if (name === 'goatdetail') renderGoatDetail();
+  if (name === 'admindashboard') renderAdminDashboard();
+  if (name === 'campcomplete') renderCampCompleteReview();
   if (name === 'settings') renderSettings();
 }
 
@@ -773,12 +897,30 @@ function renderSettings() {
   const failedRow = document.getElementById('settingsFailedRow');
   if (failed.length) { failedRow.style.display = 'flex'; document.getElementById('settingsFailedCount').textContent = failed.length+' '+L('could not sync — tap Retry','sync नहीं हो पाए — फिर कोशिश करें दबाएं'); }
   else failedRow.style.display = 'none';
+  document.getElementById('adminLockedBox').style.display = isAdmin ? 'none' : 'block';
+  document.getElementById('adminUnlockedBox').style.display = isAdmin ? 'block' : 'none';
+}
+
+function unlockAdmin() {
+  const entered = document.getElementById('adminPinInput').value.trim();
+  if (entered !== ADMIN_PIN) { showToast(L('⚠️ Wrong PIN','⚠️ गलत PIN'), false); return; }
+  isAdmin = true;
+  store.set('sc_is_admin', true);
+  document.getElementById('adminPinInput').value = '';
+  renderSettings();
+  showToast(L('✓ Admin mode on','✓ Admin मोड चालू'), true);
+}
+
+function lockAdmin() {
+  isAdmin = false;
+  store.set('sc_is_admin', false);
+  renderSettings();
 }
 
 async function clearAllData() {
   if (!confirm(L('⚠️ All local data will be erased. Are you sure?','⚠️ सभी local data मिट जाएगा। क्या आप सुनिश्चित हैं?'))) return;
   if (!confirm(L('Confirm again — this cannot be undone.','दोबारा पुष्टि करें — यह पूर्ववत नहीं होगा।'))) return;
-  ['sc_ps','sc_camps','sc_households','sc_goats','sc_pending','sc_rate_cache','sc_last_sync_error','sc_ps_list_cache','sc_regions_cache','sc_last_ai_error','sc_failed'].forEach(k=>localStorage.removeItem(k));
+  ['sc_ps','sc_camps','sc_households','sc_goats','sc_pending','sc_rate_cache','sc_last_sync_error','sc_ps_list_cache','sc_regions_cache','sc_last_ai_error','sc_failed','sc_is_admin'].forEach(k=>localStorage.removeItem(k));
   try {
     const db = await openPhotoDb();
     await new Promise((resolve,reject) => {
@@ -963,6 +1105,14 @@ function renderCampDetail() {
   document.getElementById('cdGoatCount').textContent = gs.length;
   document.getElementById('cdInterestedValue').textContent = '₹' + fmtNum(interestedValue);
 
+  const isCompleted = c.status === 'completed';
+  document.getElementById('cdCompletedStatus').style.display = isCompleted ? 'flex' : 'none';
+  // A completed camp is done registering new households — but pickup/mandi
+  // weight entry (via each goat's detail screen) stays open, since those
+  // often happen days after the camp itself is marked done.
+  document.getElementById('cdAddHhBtn').style.display = isCompleted ? 'none' : 'block';
+  document.getElementById('cdCompleteCampBtn').style.display = isCompleted ? 'none' : 'block';
+
   const el = document.getElementById('hhList');
   if (!hhs.length) { el.innerHTML = '<div class="empty-state">' + L('No households added yet','अभी कोई घर नहीं जोड़ा गया') + '</div>'; return; }
   el.innerHTML = hhs.map(h => {
@@ -981,6 +1131,54 @@ function renderCampDetail() {
 }
 
 function weightModeLabel(m) { return { scale: L('Scale','तराजू'), '2dim': L('2-point tape','2-माप टेप'), '5dim': L('5-point tape','5-माप टेप'), both: L('Scale + 5 measurements (lower)','तराजू + 5 माप (न्यूनतम)') }[m] || m; }
+
+/* ═══════════════════════ COMPLETE CAMP ═══════════════════════
+   The process this app supports ends with "close sale camp" — before this,
+   every camp stayed in the same ambiguous "maybe still active" state
+   forever, with nothing marking it actually done. */
+function renderCampCompleteReview() {
+  const c = camps.find(x => x.id === currentCampId);
+  if (!c) { showScreen('camps'); return; }
+  document.getElementById('ccVillage').textContent = c.village_name + ' · ' + c.camp_date;
+  const hhs = households.filter(h => h.camp_id === c.id);
+  const gs = goats.filter(g => g.camp_id === c.id);
+  const byResp = { interested: 0, awaited: 0, not_interested: 0 };
+  gs.forEach(g => { if (byResp[g.hh_response] !== undefined) byResp[g.hh_response]++; });
+  const interestedValue = gs.filter(g => g.hh_response === 'interested').reduce((s,g) => s + g.final_price, 0);
+
+  document.getElementById('ccStats').innerHTML = `
+    <div class="row2" style="gap:12px; margin-bottom:12px;">
+      <div><div style="font-size:11px;color:var(--grey-500);">${L('Households','घर')}</div><div style="font-weight:700;font-size:18px;">${hhs.length}</div></div>
+      <div><div style="font-size:11px;color:var(--grey-500);">${L('Goats','पशु')}</div><div style="font-weight:700;font-size:18px;">${gs.length}</div></div>
+    </div>
+    <div class="row3" style="gap:10px; margin-bottom:12px;">
+      <div><div style="font-size:11px;color:var(--grey-500);">${L('Interested','इच्छुक')}</div><div style="font-weight:700;color:var(--green-dark);">${byResp.interested}</div></div>
+      <div><div style="font-size:11px;color:var(--grey-500);">${L('Awaited','सोच रहे')}</div><div style="font-weight:700;color:var(--amber);">${byResp.awaited}</div></div>
+      <div><div style="font-size:11px;color:var(--grey-500);">${L('Not interested','अनिच्छुक')}</div><div style="font-weight:700;color:var(--red);">${byResp.not_interested}</div></div>
+    </div>
+    <div style="display:flex;justify-content:space-between;align-items:center;padding-top:10px;border-top:1px solid var(--grey-100);">
+      <span style="font-size:13px;color:var(--grey-500);">${L('Interested value','इच्छुक मूल्य')}</span>
+      <span style="font-size:18px;font-weight:700;color:var(--green-dark);">₹${fmtNum(interestedValue)}</span>
+    </div>
+    <div style="display:flex;justify-content:space-between;align-items:center;margin-top:6px;">
+      <span style="font-size:13px;color:var(--grey-500);">${L('Pending sync (all camps)','सिंक बाकी (सभी शिविर)')}</span>
+      <span style="font-size:13px;font-weight:700;">${pending.length}</span>
+    </div>`;
+  document.getElementById('ccLearnings').value = c.learnings || '';
+}
+
+function completeCamp() {
+  const c = camps.find(x => x.id === currentCampId);
+  if (!c) return;
+  const learnings = document.getElementById('ccLearnings').value.trim() || null;
+  c.status = 'completed';
+  c.completed_at = new Date().toISOString();
+  c.learnings = learnings;
+  store.set('sc_camps', camps);
+  queueWrite('update', 'camps', { id: c.id, status: 'completed', completed_at: c.completed_at, learnings });
+  showToast(L('✓ Camp marked complete','✓ शिविर पूरा हो गया'), true);
+  showScreen('campdetail');
+}
 
 /* ═══════════════════════ HOUSEHOLDS ═══════════════════════ */
 function createHousehold() {
@@ -1021,15 +1219,16 @@ function renderHouseholdDetail() {
   const el = document.getElementById('goatList');
   if (!hGoats.length) { el.innerHTML = '<div class="empty-state">' + L('No animals added yet','अभी कोई पशु नहीं जोड़ा गया') + '</div>'; return; }
   el.innerHTML = hGoats.slice().reverse().map(g => `
-    <div class="goat-row">
+    <div class="goat-row" onclick="openGoatDetail('${g.id}')">
       <div class="goat-row-top">
         <div class="goat-thumb">${(g.photos_taken > 0) ? '📷' : '🐐'}</div>
         <div class="goat-info">
           <div class="gname">${labels[g.category]||g.category} · ${g.weight_kg} kg</div>
           <div class="gmeta">${g.quality} ${L('quality','क्वालिटी')} · ₹${fmtNum(g.final_price)}</div>
         </div>
+        <div style="font-size:18px; color:var(--grey-300);">›</div>
       </div>
-      <div class="resp-row">
+      <div class="resp-row" onclick="event.stopPropagation()">
         <button class="resp-btn resp-interested ${g.hh_response==='interested'?'sel':''}" onclick="setGoatResponse('${g.id}','interested')">✅ ${L('Interested','इच्छुक')}</button>
         <button class="resp-btn resp-awaited ${g.hh_response==='awaited'?'sel':''}" onclick="setGoatResponse('${g.id}','awaited')">⏳ ${L('Awaited','सोच रहे')}</button>
         <button class="resp-btn resp-not_interested ${g.hh_response==='not_interested'?'sel':''}" onclick="setGoatResponse('${g.id}','not_interested')">❌ ${L('Not interested','अनिच्छुक')}</button>
@@ -1046,6 +1245,224 @@ function setGoatResponse(id, resp) {
   if (stillPending) { stillPending.data.hh_response = resp; stillPending.data.updated_at = g.updated_at; store.set('sc_pending', pending); }
   else queueWrite('update', 'goats', { id, hh_response: resp, updated_at: g.updated_at });
   renderHouseholdDetail();
+}
+
+/* ═══════════════════════ GOAT DETAIL — pickup + mandi weight ═══════════════════════
+   Pickup weight only makes sense once a household has actually said yes —
+   there's nothing to pick up from a goat that's still "awaited" or already
+   "not interested". Mandi weight/sale price is admin-only (see the PIN gate
+   in Settings): it's ops recording what happened after the goat left the
+   PS's hands, not something a PS enters herself. */
+function openGoatDetail(id) {
+  currentGoatId = id;
+  showScreen('goatdetail');
+}
+
+const CATEGORY_LABELS_GD = {
+  young_male_small: { hi: 'नर - छोटा', en: 'Young male - small' },
+  young_male_regular: { hi: 'नर - सामान्य', en: 'Young male - regular' },
+  young_male_body: { hi: 'नर - बड़ा', en: 'Young male - large' },
+  old_female: { hi: 'पुरानी मादा', en: 'Old female' }
+};
+
+function renderGoatDetail() {
+  const g = goats.find(x => x.id === currentGoatId);
+  if (!g) { showScreen('householddetail'); return; }
+  document.getElementById('gdSub').textContent = (CATEGORY_LABELS_GD[g.category] && CATEGORY_LABELS_GD[g.category][lang]) || g.category;
+
+  const respLabels = { interested: L('Interested','इच्छुक'), awaited: L('Awaited decision','सोच रहे'), not_interested: L('Not interested','अनिच्छुक') };
+  let infoHtml = `
+    <div class="row2" style="gap:12px;">
+      <div><div style="font-size:11px;color:var(--grey-500);">${L('Sex','लिंग')}</div><div style="font-weight:600;">${g.sex==='male'?('🐐 '+L('Male','नर')):('🐑 '+L('Female','मादा'))}</div></div>
+      <div><div style="font-size:11px;color:var(--grey-500);">${L('Teeth','दांत')}</div><div style="font-weight:600;">${g.teeth}</div></div>
+      <div><div style="font-size:11px;color:var(--grey-500);">${L('Quality','क्वालिटी')}</div><div style="font-weight:600;">${g.quality}</div></div>
+      <div><div style="font-size:11px;color:var(--grey-500);">${L('Camp weight','शिविर वजन')}</div><div style="font-weight:600;">${g.weight_kg} kg</div></div>
+    </div>`;
+  if (g.heart_girth || g.body_length) {
+    infoHtml += `<div style="margin-top:10px;font-size:12px;color:var(--grey-500);">${L('Measurements','माप')}: HG=${g.heart_girth||'—'}cm BL=${g.body_length||'—'}cm Ht=${g.height_cm||'—'}cm Rump=${g.rump_width||'—'} Paunch=${g.paunch_girth||'—'}</div>`;
+  }
+  infoHtml += `<div style="margin-top:10px;display:flex;justify-content:space-between;align-items:center;"><span style="font-size:13px;color:var(--grey-500);">${L('Household response','घर की प्रतिक्रिया')}</span><span style="font-size:13px;font-weight:700;">${respLabels[g.hh_response]||g.hh_response}</span></div>`;
+  infoHtml += `<div style="margin-top:6px;display:flex;justify-content:space-between;align-items:center;"><span style="font-size:13px;color:var(--grey-500);">${L('Final price','अंतिम मूल्य')}</span><span style="font-size:18px;font-weight:700;color:var(--green-dark);">₹${fmtNum(g.final_price)}</span></div>`;
+  document.getElementById('gdInfoContent').innerHTML = infoHtml;
+
+  const isInterested = g.hh_response === 'interested';
+
+  // Pickup section — hidden entirely until the household has said Interested.
+  document.getElementById('gdPickupSection').style.display = isInterested ? 'block' : 'none';
+  if (isInterested) {
+    const status = document.getElementById('wePickupStatus');
+    const form = document.getElementById('wePickupForm');
+    if (g.collection_weight_kg) {
+      status.className = 'we-done'; status.textContent = '✓ ' + g.collection_weight_kg + ' kg';
+      form.innerHTML = `<div style="font-size:13px;color:var(--grey-700);"><strong>${g.collection_weight_kg} kg</strong> — ${g.collection_datetime?new Date(g.collection_datetime).toLocaleString(lang==='en'?'en-IN':'hi-IN'):L('time unknown','समय अज्ञात')}</div>
+        <button class="btn-secondary" style="margin-top:8px;" onclick="resetPickupForm()">✏️ ${L('Change','बदलें')}</button>`;
+    } else {
+      status.className = 'we-pending'; status.textContent = L('Not recorded','दर्ज नहीं');
+      form.innerHTML = `
+        <div class="field"><label>${L('Weight (kg)','वजन (kg)')}</label><input type="number" id="pickupWeight" min="1" max="120" step="0.5" placeholder="जैसे 21.5" oninput="updateShrinkageDisplay()"></div>
+        <button class="btn-amber" onclick="savePickupWeight()">💾 ${L('Save pickup weight','पिकअप वजन सहेजें')}</button>`;
+    }
+  }
+
+  // Mandi section container always shows once interested — whether it's the
+  // real form or a locked note depends on isAdmin, handled below.
+  document.getElementById('gdMandiSection').style.display = isInterested ? 'block' : 'none';
+  const mandiStatus = document.getElementById('weMandiStatus');
+  const mandiForm = document.getElementById('weMandiForm');
+  if (!isAdmin) {
+    mandiStatus.className = 'we-pending'; mandiStatus.textContent = '';
+    mandiForm.innerHTML = `<div class="locked-note">🔒 ${L('Admin only — unlock in Settings to record this.','केवल Admin — इसे दर्ज करने के लिए Settings में अनलॉक करें।')}</div>`;
+  } else if (g.mandi_weight_kg) {
+    mandiStatus.className = 'we-done'; mandiStatus.textContent = '✓ ' + g.mandi_weight_kg + ' kg';
+    mandiForm.innerHTML = `<div style="font-size:13px;color:var(--grey-700);"><strong>${g.mandi_weight_kg} kg</strong>${g.mandi_sale_price?(' · ₹'+fmtNum(g.mandi_sale_price)):''} — ${g.mandi_datetime?new Date(g.mandi_datetime).toLocaleString(lang==='en'?'en-IN':'hi-IN'):L('time unknown','समय अज्ञात')}</div>
+      <button class="btn-secondary" style="margin-top:8px;" onclick="resetMandiForm()">✏️ ${L('Change','बदलें')}</button>`;
+  } else {
+    mandiStatus.className = 'we-pending'; mandiStatus.textContent = L('Not recorded','दर्ज नहीं');
+    mandiForm.innerHTML = `
+      <div class="field"><label>${L('Weight (kg)','वजन (kg)')}</label><input type="number" id="mandiWeight" min="1" max="120" step="0.5" placeholder="जैसे 20.0" oninput="updateShrinkageDisplay()"></div>
+      <div class="field"><label>${L('Sale price (₹)','बिक्री मूल्य (₹)')}</label><input type="number" id="mandiSalePrice" min="0" placeholder="जैसे 7000"></div>
+      <button class="btn-primary" onclick="saveMandiWeight()">💾 ${L('Save mandi weight & price','मंडी वजन और मूल्य सहेजें')}</button>`;
+  }
+
+  updateShrinkageDisplay();
+}
+
+function resetPickupForm() {
+  const g = goats.find(x => x.id === currentGoatId); if (!g) return;
+  g.collection_weight_kg = null; g.collection_datetime = null; store.set('sc_goats', goats);
+  renderGoatDetail();
+}
+function resetMandiForm() {
+  const g = goats.find(x => x.id === currentGoatId); if (!g) return;
+  g.mandi_weight_kg = null; g.mandi_datetime = null; g.mandi_sale_price = null; store.set('sc_goats', goats);
+  renderGoatDetail();
+}
+
+function savePickupWeight() {
+  const wEl = document.getElementById('pickupWeight');
+  if (!wEl || !wEl.value) { showToast(L('⚠️ Enter a weight','⚠️ वजन डालें'), false); return; }
+  const w = parseFloat(wEl.value);
+  const dt = new Date().toISOString();
+  const g = goats.find(x => x.id === currentGoatId); if (!g) return;
+  g.collection_weight_kg = w; g.collection_datetime = dt; g.updated_at = new Date().toISOString();
+  store.set('sc_goats', goats);
+  queueWrite('update', 'goats', { id: g.id, collection_weight_kg: w, collection_datetime: dt, updated_at: g.updated_at });
+  showToast(L('✓ Pickup weight saved','✓ पिकअप वजन सहेजा गया'), true);
+  renderGoatDetail();
+}
+
+function saveMandiWeight() {
+  const wEl = document.getElementById('mandiWeight');
+  const pEl = document.getElementById('mandiSalePrice');
+  if (!wEl || !wEl.value) { showToast(L('⚠️ Enter a weight','⚠️ वजन डालें'), false); return; }
+  const w = parseFloat(wEl.value);
+  const price = (pEl && pEl.value) ? parseFloat(pEl.value) : null;
+  const dt = new Date().toISOString();
+  const g = goats.find(x => x.id === currentGoatId); if (!g) return;
+  g.mandi_weight_kg = w; g.mandi_sale_price = price; g.mandi_datetime = dt; g.updated_at = new Date().toISOString();
+  store.set('sc_goats', goats);
+  queueWrite('update', 'goats', { id: g.id, mandi_weight_kg: w, mandi_sale_price: price, mandi_datetime: dt, updated_at: g.updated_at });
+  showToast(L('✓ Mandi weight & price saved','✓ मंडी वजन और मूल्य सहेजा गया'), true);
+  renderGoatDetail();
+}
+
+function updateShrinkageDisplay() {
+  const g = goats.find(x => x.id === currentGoatId);
+  if (!g) return;
+  const cw = g.weight_kg;
+  const pw = g.collection_weight_kg || parseFloat((document.getElementById('pickupWeight')||{}).value) || null;
+  const mw = g.mandi_weight_kg || parseFloat((document.getElementById('mandiWeight')||{}).value) || null;
+  const banner = document.getElementById('shrinkageBanner');
+  // Prefer camp → pickup (the leg every PS can actually track); fall back to
+  // camp → mandi directly if pickup weight was never recorded.
+  let from = null, to = null, legLabel = '';
+  if (cw && pw) { from = cw; to = pw; legLabel = L('Camp → Pickup','शिविर → पिकअप'); }
+  if (pw && mw) { from = pw; to = mw; legLabel = L('Pickup → Mandi','पिकअप → मंडी'); }
+  else if (cw && mw && !pw) { from = cw; to = mw; legLabel = L('Camp → Mandi','शिविर → मंडी'); }
+  if (from && to && from > 0) {
+    banner.style.display = 'flex';
+    document.getElementById('shrinkageLegLabel').textContent = legLabel;
+    document.getElementById('shrinkageVal').textContent = ((from - to) / from * 100).toFixed(1) + '%';
+  } else {
+    banner.style.display = 'none';
+  }
+}
+
+/* ═══════════════════════ ADMIN DASHBOARD ═══════════════════════
+   Deliberately kept in its own adminCamps/adminHouseholds/adminGoats
+   variables, separate from the signed-in PS's own camps/households/goats —
+   this view spans every PS, so it must never get mixed into (or overwrite)
+   the data the rest of the app uses for "my camps". */
+let adminCamps = [], adminHouseholds = [], adminGoats = [];
+
+async function refreshAdminData() {
+  if (!sb) return false;
+  try {
+    const cutoff = new Date(); cutoff.setDate(cutoff.getDate() - HISTORY_DAYS);
+    const cutoffStr = cutoff.toISOString().slice(0, 10);
+    const { data: camps_, error } = await sb.from('camps').select('*').gte('camp_date', cutoffStr);
+    if (error || !camps_) return false;
+    adminCamps = camps_;
+    const campIds = adminCamps.map(c => c.id);
+    if (!campIds.length) { adminHouseholds = []; adminGoats = []; return true; }
+    const [{ data: hh_ }, { data: goats_ }] = await Promise.all([
+      sb.from('households').select('*').in('camp_id', campIds),
+      sb.from('goats').select('*').in('camp_id', campIds)
+    ]);
+    adminHouseholds = hh_ || [];
+    adminGoats = goats_ || [];
+    return true;
+  } catch (e) { return false; }
+}
+
+async function renderAdminDashboard() {
+  const body = document.getElementById('adminDashboardBody');
+  body.innerHTML = '<div class="empty-state">' + L('Loading…','लोड हो रहा है…') + '</div>';
+  const ok = await refreshAdminData();
+  if (!ok) { body.innerHTML = '<div class="empty-state">' + L('Could not load — check internet and try again','लोड नहीं हो सका — इंटरनेट जांचें और फिर कोशिश करें') + '</div>'; return; }
+
+  const totalHh = adminHouseholds.length;
+  const totalGoats = adminGoats.length;
+  const interestedGoats = adminGoats.filter(g => g.hh_response === 'interested');
+  const interestedValue = interestedGoats.reduce((s,g) => s + g.final_price, 0);
+  const interestedHhIds = new Set(adminGoats.filter(g => g.hh_response === 'interested').map(g => g.household_id));
+
+  // Per-PS breakdown — ps_name is stored directly on camps/goats already, no join needed.
+  const psNames = [...new Set(adminCamps.map(c => c.ps_name))].sort();
+  const perPs = psNames.map(name => {
+    const psCampIds = new Set(adminCamps.filter(c => c.ps_name === name).map(c => c.id));
+    const psHh = adminHouseholds.filter(h => psCampIds.has(h.camp_id));
+    const psGoats = adminGoats.filter(g => psCampIds.has(g.camp_id));
+    const psInterestedHhIds = new Set(psGoats.filter(g => g.hh_response === 'interested').map(g => g.household_id));
+    return {
+      name,
+      camps: psCampIds.size,
+      households: psHh.length,
+      interestedHouseholds: psInterestedHhIds.size,
+      goats: psGoats.length,
+      interestedValue: psGoats.filter(g => g.hh_response === 'interested').reduce((s,g) => s + g.final_price, 0)
+    };
+  });
+
+  body.innerHTML = `
+    <div class="table-summary" style="margin-bottom:14px;">
+      <div class="summary-item"><strong>${adminCamps.length}</strong><span>${L('Camps','शिविर')}</span></div>
+      <div class="summary-item"><strong>${totalHh}</strong><span>${L('Households','घर')}</span></div>
+      <div class="summary-item"><strong>${totalGoats}</strong><span>${L('Goats','पशु')}</span></div>
+      <div class="summary-item"><strong>${interestedHhIds.size}</strong><span>${L('Interested HH','इच्छुक घर')}</span></div>
+      <div class="summary-item"><strong>₹${fmtNum(interestedValue)}</strong><span>${L('Interested value','इच्छुक मूल्य')}</span></div>
+    </div>
+    ${perPs.map(p => `
+      <div class="list-card">
+        <div class="list-card-top"><div class="list-card-name">${p.name}</div><span class="chip chip-ready">${p.camps} ${L('camps','शिविर')}</span></div>
+        <div class="list-card-stats">
+          <div><div class="list-card-stat-label">${L('Households','घर')}</div><div class="list-card-stat-value">${p.households}</div></div>
+          <div><div class="list-card-stat-label">${L('Interested HH','इच्छुक घर')}</div><div class="list-card-stat-value">${p.interestedHouseholds}</div></div>
+          <div><div class="list-card-stat-label">${L('Goats','पशु')}</div><div class="list-card-stat-value">${p.goats}</div></div>
+        </div>
+        <div style="margin-top:8px; font-size:12.5px; color:var(--grey-500);">${L('Interested value','इच्छुक मूल्य')}: <strong style="color:var(--green-dark);">₹${fmtNum(p.interestedValue)}</strong></div>
+      </div>`).join('') || '<div class="empty-state">' + L('No camps in the last 15 days','पिछले 15 दिनों में कोई शिविर नहीं') + '</div>'}
+  `;
 }
 
 /* ═══════════════════════ ADD GOAT ═══════════════════════ */
@@ -1077,6 +1494,7 @@ function prepAddGoat() {
   capturedPhotos = {};
   aiSuggestedQuality = null;
   document.getElementById('aiQualityRow').classList.add('hidden');
+  document.getElementById('aiQualityNote').classList.add('hidden');
   document.getElementById('gResult').classList.remove('show');
   document.getElementById('gWarning').classList.remove('show');
   document.getElementById('gNoRate').classList.remove('show');
@@ -1353,6 +1771,12 @@ async function analyzePhotoWithClaude() {
       aiSuggestedQuality = q;
       const qLabels = {'1st':L('First (1st)','पहली (1st)'),'2nd':L('Second (2nd)','दूसरी (2nd)'),'3rd':L('Third (3rd)','तीसरी (3rd)')};
       label.textContent = L('AI suggestion: ','AI सुझाव: ') + qLabels[q];
+      // Also shown right under the Quality dropdown itself, not just up here
+      // in the photo card — stays visible regardless of scroll position, and
+      // regardless of whether the dropdown is later changed away from it.
+      const note = document.getElementById('aiQualityNote');
+      note.textContent = L('🤖 AI suggested: ','🤖 AI ने सुझाया: ') + qLabels[q];
+      note.classList.remove('hidden');
       if (!document.getElementById('gQuality').value) {
         document.getElementById('gQuality').value = q;
         recalcAddGoat();
