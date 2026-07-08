@@ -373,7 +373,6 @@
 
   <div class="result-card" id="gResult">
     <div class="result-row"><span class="result-label" data-en="Category" data-hi="श्रेणी">श्रेणी</span><span class="result-value" id="gCat">—</span></div>
-    <div class="result-row"><span class="result-label" data-en="Rate card (₹/kg)" data-hi="रेट कार्ड (₹/kg)">रेट कार्ड (₹/kg)</span><span class="result-value" id="gRate">—</span></div>
     <hr class="result-divider">
     <div class="result-row"><span class="result-label" data-en="Final price" data-hi="अंतिम मूल्य">अंतिम मूल्य</span><span class="result-value big" id="gFinal">₹—</span></div>
   </div>
@@ -428,7 +427,6 @@
   <div class="warning-msg" id="cWarning" data-en="⚠️ This animal doesn't fall in our purchase category." data-hi="⚠️ यह पशु हमारी खरीद श्रेणी में नहीं आता।">⚠️ यह पशु हमारी खरीद श्रेणी में नहीं आता।</div>
   <div class="result-card" id="cResult">
     <div class="result-row"><span class="result-label" data-en="Category" data-hi="श्रेणी">श्रेणी</span><span class="result-value" id="cCat">—</span></div>
-    <div class="result-row"><span class="result-label" data-en="Rate card (₹/kg)" data-hi="रेट कार्ड (₹/kg)">रेट कार्ड (₹/kg)</span><span class="result-value" id="cRate">—</span></div>
     <hr class="result-divider">
     <div class="result-row"><span class="result-label" data-en="Estimated price" data-hi="अनुमानित मूल्य">अनुमानित मूल्य</span><span class="result-value big" id="cFinal">₹—</span></div>
   </div>
@@ -743,6 +741,7 @@ function changePSUser() {
 
 /* ═══════════════════════ SCREEN NAV ═══════════════════════ */
 function showScreen(name) {
+  document.getElementById('toast').classList.remove('show'); // a message about the screen you're leaving shouldn't bleed onto the next one
   document.querySelectorAll('.screen').forEach(s => s.classList.remove('active'));
   document.getElementById('screen-' + name).classList.add('active');
   document.querySelectorAll('.tab').forEach(t => t.classList.toggle('active', t.dataset.tab === name || (name!=='camps' && name!=='calc' && t.dataset.tab==='camps')));
@@ -1067,8 +1066,8 @@ function prepAddGoat() {
     const preview = document.getElementById('photoPreview'+i);
     if (preview.getAttribute('data-photo')) URL.revokeObjectURL(preview.src); // release the previous form's photo memory
     preview.style.display = 'none';
-    document.getElementById('photoPlaceholder'+i).style.display = 'block';
     preview.removeAttribute('data-photo');
+    resetPhotoPlaceholder(i);
   });
   capturedPhotos = {};
   aiSuggestedQuality = null;
@@ -1171,7 +1170,6 @@ function recalcAddGoat() {
   if (!quote.eligible) { warn.classList.add('show'); return; }
   if (quote.noRateCard) { noRate.classList.add('show'); return; }
   document.getElementById('gCat').textContent = categoryLabel(quote.category.key);
-  document.getElementById('gRate').textContent = '₹' + quote.rate;
   document.getElementById('gFinal').textContent = '₹' + fmtNum(quote.finalPrice);
   result.classList.add('show');
   if (response) document.getElementById('btnSaveGoat').disabled = false;
@@ -1252,6 +1250,25 @@ async function deletePendingPhotos(goatId) {
   });
 }
 
+// The placeholder's markup gets replaced with plain "Processing…" text while a
+// photo compresses (see onPhotoSelected below), and never restored on success
+// — only the error path used to put the camera icon back. That left the very
+// next goat's photo boxes permanently stuck showing "Processing…" (the prior
+// goat's leftover text), even though nothing was actually processing. This
+// helper is now the one place that resets a photo box back to its default
+// icon + label, called on error AND whenever a fresh goat form is prepared.
+const PHOTO_LABELS = {
+  1: { en: 'Photo 1 (Front)', hi: 'फोटो 1 (सामने)' },
+  2: { en: 'Photo 2 (Side)', hi: 'फोटो 2 (साइड से)' },
+  3: { en: 'Photo 3 (Back)', hi: 'फोटो 3 (पीछे से)' }
+};
+function resetPhotoPlaceholder(idx) {
+  const label = PHOTO_LABELS[idx];
+  const placeholder = document.getElementById('photoPlaceholder'+idx);
+  placeholder.innerHTML = '📷<div class="hint" data-en="'+label.en+'" data-hi="'+label.hi+'">'+(lang==='en'?label.en:label.hi)+'</div>';
+  placeholder.style.display = 'block';
+}
+
 async function onPhotoSelected(e, idx) {
   const file = e.target.files[0];
   if (!file) return;
@@ -1273,7 +1290,7 @@ async function onPhotoSelected(e, idx) {
   } catch (err) {
     console.error('Photo compression failed', err);
     showToast(L('⚠️ Could not process that photo — try again', '⚠️ फोटो प्रोसेस नहीं हो सकी - फिर कोशिश करें'), false);
-    placeholder.innerHTML = '📷<div class="hint" data-en="Photo '+idx+'" data-hi="फोटो '+idx+'">फोटो '+idx+'</div>';
+    resetPhotoPlaceholder(idx);
   }
 }
 
@@ -1306,7 +1323,10 @@ async function analyzePhotoWithClaude() {
     const [front, side, back] = await Promise.all([1,2,3].map(i => blobToBase64(capturedPhotos[i])));
     const resp = await fetch(CLAUDE_PROXY_URL, {
       method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
+      // text/plain avoids a CORS preflight (Apps Script web apps don't answer
+      // OPTIONS requests) — the proxy just JSON.parses the raw body either
+      // way, so the declared content type here doesn't need to match.
+      headers: { 'Content-Type': 'text/plain;charset=utf-8' },
       body: JSON.stringify({ images: [front, side, back] })
     });
 
@@ -1480,7 +1500,6 @@ async function recalcCalc() {
   if (!quote.eligible) { warn.textContent = L('⚠️ This animal doesn\'t fall in our purchase category.','⚠️ यह पशु हमारी खरीद श्रेणी में नहीं आता।'); warn.classList.add('show'); return; }
   if (quote.noRateCard) { warn.textContent = L('⚠️ No rate card is available for this region.','⚠️ इस क्षेत्र के लिए रेट कार्ड उपलब्ध नहीं है।'); warn.classList.add('show'); return; }
   document.getElementById('cCat').textContent = categoryLabel(quote.category.key);
-  document.getElementById('cRate').textContent = '₹' + quote.rate;
   document.getElementById('cFinal').textContent = '₹' + fmtNum(quote.finalPrice);
   result.classList.add('show');
 }
