@@ -114,6 +114,9 @@
   .chip { display:inline-block; padding:3px 9px; border-radius:10px; font-size:10.5px; font-weight:600; white-space:nowrap; }
   .chip-ready { background:var(--green-pale); color:var(--green-dark); }
   .chip-norate { background:var(--red-pale); color:var(--red); }
+  .chip-collected { background:var(--amber-pale); color:var(--amber); }
+  .chip-mandi { background:var(--blue-pale); color:var(--blue); }
+  .goat-chips { display:flex; gap:4px; margin-top:5px; flex-wrap:wrap; }
 
   .goat-row { background:var(--white); border-radius:10px; padding:12px; margin-bottom:8px; box-shadow:var(--shadow); cursor:pointer; }
   .goat-row:active { background:var(--grey-100); }
@@ -304,7 +307,7 @@
 
 <!-- ══ SCREEN: GOAT DETAIL (pickup + mandi weights) ══ -->
 <div class="screen" id="screen-goatdetail">
-  <div class="back-row"><div class="back-ic" onclick="showScreen('householddetail')">←</div>
+  <div class="back-row"><div class="back-ic" id="gdBackBtn" onclick="showScreen('householddetail')">←</div>
     <div><div class="scr-title" data-en="Animal detail" data-hi="पशु विवरण">पशु विवरण</div><div class="scr-sub" id="gdSub">—</div></div>
   </div>
 
@@ -312,6 +315,8 @@
     <div class="card-title" data-en="Recorded at the camp" data-hi="शिविर में दर्ज जानकारी">शिविर में दर्ज जानकारी</div>
     <div id="gdInfoContent"></div>
   </div>
+
+  <div class="locked-note" id="gdNotInterestedNote" style="display:none; margin-bottom:12px;">🕓 <span data-en="Pickup and mandi weight can be recorded once this household is marked Interested." data-hi="घर को इच्छुक चिह्नित करने के बाद पिकअप और मंडी वजन दर्ज किया जा सकता है।">घर को इच्छुक चिह्नित करने के बाद पिकअप और मंडी वजन दर्ज किया जा सकता है।</span></div>
 
   <!-- Pickup-day weight — only relevant once the household has said Interested -->
   <div id="gdPickupSection">
@@ -458,6 +463,7 @@
 
   <div class="warning-msg" id="gWarning" data-en="⚠️ This animal doesn't fall in our purchase category (only young males and old females)." data-hi="⚠️ यह पशु हमारी खरीद श्रेणी में नहीं आता (केवल युवा नर और पुरानी मादा)।">⚠️ यह पशु हमारी खरीद श्रेणी में नहीं आता (केवल युवा नर और पुरानी मादा)।</div>
   <div class="warning-msg" id="gNoRate" data-en="⚠️ No valid rate card is available for this region. Connect to the internet once and sync." data-hi="⚠️ इस क्षेत्र के लिए कोई मान्य रेट कार्ड उपलब्ध नहीं है। इंटरनेट से एक बार जुड़ें और सिंक करें।">⚠️ इस क्षेत्र के लिए कोई मान्य रेट कार्ड उपलब्ध नहीं है। इंटरनेट से एक बार जुड़ें और सिंक करें।</div>
+  <div class="warning-msg" id="gMissingWeight" data-en="⚠️ Weight, heart girth, and body length are all required." data-hi="⚠️ वजन, हार्ट गर्थ और बॉडी लेंथ — तीनों जरूरी हैं।">⚠️ वजन, हार्ट गर्थ और बॉडी लेंथ — तीनों जरूरी हैं।</div>
 
   <div class="result-card" id="gResult">
     <div class="result-row"><span class="result-label" data-en="Category" data-hi="श्रेणी">श्रेणी</span><span class="result-value" id="gCat">—</span></div>
@@ -749,6 +755,7 @@ let regionsCache = store.get('sc_regions_cache', []);
 
 let sex = null, response = null;
 let currentCampId = null, currentHouseholdId = null, currentGoatId = null;
+let openedGoatFromAdmin = false;
 let calcSex = null;
 let capturedPhotos = {}; // { 1: Blob, 2: Blob, 3: Blob } for the goat form currently open
 let aiSuggestedQuality = null;
@@ -1253,8 +1260,19 @@ function setGoatResponse(id, resp) {
    "not interested". Mandi weight/sale price is admin-only (see the PIN gate
    in Settings): it's ops recording what happened after the goat left the
    PS's hands, not something a PS enters herself. */
-function openGoatDetail(id) {
+// A goat opened from the admin dashboard may belong to a different PS than
+// whoever is currently signed in — it won't be in this device's own `goats`
+// array (only in the admin-only adminGoats fetched for the dashboard). This
+// looks in both places so the same goat-detail screen works either way.
+function findGoatAnywhere(id) {
+  return goats.find(x => x.id === id) || adminGoats.find(x => x.id === id);
+}
+
+function openGoatDetail(id, fromAdmin) {
   currentGoatId = id;
+  // Remembers where "back" should go — a normal PS always came from her own
+  // household screen; an admin browsing another PS's goat came from the dashboard.
+  openedGoatFromAdmin = !!fromAdmin;
   showScreen('goatdetail');
 }
 
@@ -1266,8 +1284,9 @@ const CATEGORY_LABELS_GD = {
 };
 
 function renderGoatDetail() {
-  const g = goats.find(x => x.id === currentGoatId);
-  if (!g) { showScreen('householddetail'); return; }
+  document.getElementById('gdBackBtn').setAttribute('onclick', "showScreen('" + (openedGoatFromAdmin ? 'admindashboard' : 'householddetail') + "')");
+  const g = findGoatAnywhere(currentGoatId);
+  if (!g) { showScreen(openedGoatFromAdmin ? 'admindashboard' : 'householddetail'); return; }
   document.getElementById('gdSub').textContent = (CATEGORY_LABELS_GD[g.category] && CATEGORY_LABELS_GD[g.category][lang]) || g.category;
 
   const respLabels = { interested: L('Interested','इच्छुक'), awaited: L('Awaited decision','सोच रहे'), not_interested: L('Not interested','अनिच्छुक') };
@@ -1286,6 +1305,7 @@ function renderGoatDetail() {
   document.getElementById('gdInfoContent').innerHTML = infoHtml;
 
   const isInterested = g.hh_response === 'interested';
+  document.getElementById('gdNotInterestedNote').style.display = isInterested ? 'none' : 'block';
 
   // Pickup section — hidden entirely until the household has said Interested.
   document.getElementById('gdPickupSection').style.display = isInterested ? 'block' : 'none';
@@ -1328,12 +1348,12 @@ function renderGoatDetail() {
 }
 
 function resetPickupForm() {
-  const g = goats.find(x => x.id === currentGoatId); if (!g) return;
+  const g = findGoatAnywhere(currentGoatId); if (!g) return;
   g.collection_weight_kg = null; g.collection_datetime = null; store.set('sc_goats', goats);
   renderGoatDetail();
 }
 function resetMandiForm() {
-  const g = goats.find(x => x.id === currentGoatId); if (!g) return;
+  const g = findGoatAnywhere(currentGoatId); if (!g) return;
   g.mandi_weight_kg = null; g.mandi_datetime = null; g.mandi_sale_price = null; store.set('sc_goats', goats);
   renderGoatDetail();
 }
@@ -1343,7 +1363,7 @@ function savePickupWeight() {
   if (!wEl || !wEl.value) { showToast(L('⚠️ Enter a weight','⚠️ वजन डालें'), false); return; }
   const w = parseFloat(wEl.value);
   const dt = new Date().toISOString();
-  const g = goats.find(x => x.id === currentGoatId); if (!g) return;
+  const g = findGoatAnywhere(currentGoatId); if (!g) return;
   g.collection_weight_kg = w; g.collection_datetime = dt; g.updated_at = new Date().toISOString();
   store.set('sc_goats', goats);
   queueWrite('update', 'goats', { id: g.id, collection_weight_kg: w, collection_datetime: dt, updated_at: g.updated_at });
@@ -1358,7 +1378,7 @@ function saveMandiWeight() {
   const w = parseFloat(wEl.value);
   const price = (pEl && pEl.value) ? parseFloat(pEl.value) : null;
   const dt = new Date().toISOString();
-  const g = goats.find(x => x.id === currentGoatId); if (!g) return;
+  const g = findGoatAnywhere(currentGoatId); if (!g) return;
   g.mandi_weight_kg = w; g.mandi_sale_price = price; g.mandi_datetime = dt; g.updated_at = new Date().toISOString();
   store.set('sc_goats', goats);
   queueWrite('update', 'goats', { id: g.id, mandi_weight_kg: w, mandi_sale_price: price, mandi_datetime: dt, updated_at: g.updated_at });
@@ -1367,7 +1387,7 @@ function saveMandiWeight() {
 }
 
 function updateShrinkageDisplay() {
-  const g = goats.find(x => x.id === currentGoatId);
+  const g = findGoatAnywhere(currentGoatId);
   if (!g) return;
   const cw = g.weight_kg;
   const pw = g.collection_weight_kg || parseFloat((document.getElementById('pickupWeight')||{}).value) || null;
@@ -1444,6 +1464,13 @@ async function renderAdminDashboard() {
     };
   });
 
+  // Flattened, tappable list of every interested goat across every PS — this
+  // is the actual way in to record pickup/mandi weight for a goat that isn't
+  // your own. The per-PS cards above are read-only totals; this is where you act.
+  const hhById = {}; adminHouseholds.forEach(h => hhById[h.id] = h);
+  const campById = {}; adminCamps.forEach(c => campById[c.id] = c);
+  const catLabelsAdmin = { young_male_small: L('Small male','नर छोटा'), young_male_regular: L('Regular male','नर सामान्य'), young_male_body: L('Large male','नर बड़ा'), old_female: L('Old female','पुरानी मादा') };
+
   body.innerHTML = `
     <div class="table-summary" style="margin-bottom:14px;">
       <div class="summary-item"><strong>${adminCamps.length}</strong><span>${L('Camps','शिविर')}</span></div>
@@ -1462,6 +1489,26 @@ async function renderAdminDashboard() {
         </div>
         <div style="margin-top:8px; font-size:12.5px; color:var(--grey-500);">${L('Interested value','इच्छुक मूल्य')}: <strong style="color:var(--green-dark);">₹${fmtNum(p.interestedValue)}</strong></div>
       </div>`).join('') || '<div class="empty-state">' + L('No camps in the last 15 days','पिछले 15 दिनों में कोई शिविर नहीं') + '</div>'}
+
+    <div class="card-title" style="margin-top:18px;" data-en="Interested goats — tap to record pickup/mandi weight" data-hi="इच्छुक पशु — पिकअप/मंडी वजन दर्ज करने के लिए टैप करें">इच्छुक पशु — पिकअप/मंडी वजन दर्ज करने के लिए टैप करें</div>
+    ${interestedGoats.map(g => {
+      const hh = hhById[g.household_id], camp = campById[g.camp_id];
+      const pickupDone = !!g.collection_weight_kg, mandiDone = !!g.mandi_weight_kg;
+      return `<div class="goat-row" onclick="openGoatDetail('${g.id}', true)">
+        <div class="goat-row-top">
+          <div class="goat-thumb">🐐</div>
+          <div class="goat-info">
+            <div class="gname">${hh?hh.hh_name:'—'} · ${catLabelsAdmin[g.category]||g.category}</div>
+            <div class="gmeta">${camp?(camp.village_name+' · '+camp.ps_name):''} · ₹${fmtNum(g.final_price)}</div>
+          </div>
+          <div style="font-size:18px; color:var(--grey-300);">›</div>
+        </div>
+        <div class="goat-chips">
+          <span class="chip ${pickupDone?'chip-collected':'chip-norate'}">${pickupDone?('🚛 '+g.collection_weight_kg+'kg'):L('Pickup pending','पिकअप बाकी')}</span>
+          <span class="chip ${mandiDone?'chip-mandi':'chip-norate'}">${mandiDone?('🏪 '+g.mandi_weight_kg+'kg'):L('Mandi pending','मंडी बाकी')}</span>
+        </div>
+      </div>`;
+    }).join('') || '<div class="empty-state">' + L('No interested goats yet','अभी कोई इच्छुक पशु नहीं') + '</div>'}
   `;
 }
 
@@ -1498,14 +1545,19 @@ function prepAddGoat() {
   document.getElementById('gResult').classList.remove('show');
   document.getElementById('gWarning').classList.remove('show');
   document.getElementById('gNoRate').classList.remove('show');
+  document.getElementById('gMissingWeight').classList.remove('show');
   document.getElementById('btnSaveGoat').disabled = true;
 
-  document.getElementById('scaleFields').style.display = (c.weight_mode === 'scale' || c.weight_mode === 'both') ? 'block' : 'none';
-  document.getElementById('tapeFields2').style.display = (c.weight_mode === '2dim') ? 'block' : 'none';
-  document.getElementById('tapeFields5').style.display = (c.weight_mode === '5dim' || c.weight_mode === 'both') ? 'block' : 'none';
-  // In 'both' mode the effective (lower of scale/tape) weight replaces the
-  // plain tape-only readout, so the two aren't shown confusingly side by side.
-  document.getElementById('tapeOut5Wrap').style.display = c.weight_mode === 'both' ? 'none' : 'block';
+  // Field-testing phase: every goat requires scale weight + heart girth +
+  // body length, always — regardless of the PS's assigned weight_mode. This
+  // is deliberate: the point of this phase is collecting enough real
+  // scale-vs-formula pairs to validate the weight formula and AI quality
+  // check, so every goat needs both, not whichever the PS's profile allows.
+  // Height/rump/paunch stay optional extra data collection, same as before.
+  document.getElementById('scaleFields').style.display = 'block';
+  document.getElementById('tapeFields2').style.display = 'none';
+  document.getElementById('tapeFields5').style.display = 'block';
+  document.getElementById('tapeOut5Wrap').style.display = 'none';
   document.getElementById('effWeightRow').style.display = 'none';
 
   renderGoatProgress();
@@ -1555,29 +1607,26 @@ function renderEffWeight(eff) {
   else breakdown.textContent = L('from tape only (no scale reading yet)','सिर्फ टेप से (अभी तराजू रीडिंग नहीं)');
 }
 
+// Field-testing phase: always scale + heart girth/body length together (the
+// "both" behavior), regardless of camp.weight_mode — see prepAddGoat().
 function currentWeight() {
   const c = camps.find(x => x.id === currentCampId);
   if (!c) return null;
-  if (c.weight_mode === 'scale') return parseFloat(document.getElementById('gWeightScale').value) || null;
-  if (c.weight_mode === '2dim') {
-    const hg = parseFloat(document.getElementById('gHg').value) || 0;
-    const bl = parseFloat(document.getElementById('gBl').value) || 0;
-    const w = PricingLib.estimateWeightFromTape(hg, bl);
-    document.getElementById('gWeightTapeOut2').value = w ? w.toFixed(1) + ' kg' : '-- kg';
-    return w;
-  }
-  if (c.weight_mode === 'both') {
-    const eff = computeEffectiveWeight(document.getElementById('gWeightScale').value, document.getElementById('gHg5').value, document.getElementById('gBl5').value);
-    renderEffWeight(eff);
-    return eff ? eff.weight : null;
-  }
-  // 5dim: price still comes from heart girth + body length (see pricing.js) —
-  // height/rump/paunch are captured and stored but don't change the number yet.
-  const hg = parseFloat(document.getElementById('gHg5').value) || 0;
-  const bl = parseFloat(document.getElementById('gBl5').value) || 0;
-  const w = PricingLib.estimateWeightFromTape(hg, bl);
-  document.getElementById('gWeightTapeOut5').value = w ? w.toFixed(1) + ' kg' : '-- kg';
-  return w;
+  const eff = computeEffectiveWeight(document.getElementById('gWeightScale').value, document.getElementById('gHg5').value, document.getElementById('gBl5').value);
+  renderEffWeight(eff);
+  return eff ? eff.weight : null;
+}
+
+// All three are mandatory during field testing (not just "enough to compute
+// something") — this is what actually guarantees every goat has a real
+// scale-vs-formula pair to validate the weight formula against, which
+// currentWeight()/computeEffectiveWeight() alone don't enforce (they're
+// happy with just one of the two).
+function allWeightFieldsFilled() {
+  const scale = parseFloat(document.getElementById('gWeightScale').value);
+  const hg = parseFloat(document.getElementById('gHg5').value);
+  const bl = parseFloat(document.getElementById('gBl5').value);
+  return !!scale && !!hg && !!bl;
 }
 
 function recalcAddGoat() {
@@ -1586,9 +1635,12 @@ function recalcAddGoat() {
   const teeth = document.getElementById('gTeeth').value;
   const quality = document.getElementById('gQuality').value;
   const warn = document.getElementById('gWarning'), noRate = document.getElementById('gNoRate'), result = document.getElementById('gResult');
-  warn.classList.remove('show'); noRate.classList.remove('show'); result.classList.remove('show');
+  const missingWeight = document.getElementById('gMissingWeight');
+  warn.classList.remove('show'); noRate.classList.remove('show'); result.classList.remove('show'); missingWeight.classList.remove('show');
   document.getElementById('btnSaveGoat').disabled = true;
-  if (!sex || !teeth || !quality || !weight || !c) return;
+  if (!sex || !teeth || !quality || !c) return;
+  if (!allWeightFieldsFilled()) { missingWeight.classList.add('show'); return; }
+  if (!weight) return;
   const quote = computeQuote(c.region, sex, teeth, weight, quality);
   if (!quote.eligible) { warn.classList.add('show'); return; }
   if (quote.noRateCard) { noRate.classList.add('show'); return; }
@@ -1806,28 +1858,29 @@ async function saveGoat() {
   if (!c || !h || !response) { showToast(L('⚠️ Select the household response','⚠️ घर की प्रतिक्रिया चुनें'), false); return; }
   const teeth = document.getElementById('gTeeth').value;
   const quality = document.getElementById('gQuality').value;
+  if (!allWeightFieldsFilled()) { showToast(L('⚠️ Weight, heart girth, and body length are all required','⚠️ वजन, हार्ट गर्थ और बॉडी लेंथ — तीनों जरूरी हैं'), false); return; }
   const weight = currentWeight();
   const quote = computeQuote(c.region, sex, teeth, weight, quality);
   if (!quote.eligible || quote.noRateCard) { showToast(L('⚠️ Please fill in all details correctly first','⚠️ पहले पूरी जानकारी सही भरें'), false); return; }
   document.getElementById('btnSaveGoat').disabled = true; // guard against a double tap while photos save
   const photosTaken = Object.keys(capturedPhotos).length;
-  // 'both' now shares the same 5-measurement fields as '5dim' (it used to
-  // pair the scale with just heart girth + body length) — every 'both'-mode
-  // camp captures the full 5-measurement set, same richness as pure 5dim,
-  // with the scale reading additionally used for the lower-of-two safeguard.
-  const usesFiveDimFields = c.weight_mode === '5dim' || c.weight_mode === 'both';
-  const eff = c.weight_mode === 'both' ? computeEffectiveWeight(document.getElementById('gWeightScale').value, document.getElementById('gHg5').value, document.getElementById('gBl5').value) : null;
+  // Field-testing phase: every goat is captured scale + heart girth/body
+  // length + optional height/rump/paunch, regardless of camp.weight_mode —
+  // see prepAddGoat(). weight_method is recorded as 'both' to accurately
+  // reflect what was actually captured, not whatever the camp's nominal
+  // weight_mode says.
+  const eff = computeEffectiveWeight(document.getElementById('gWeightScale').value, document.getElementById('gHg5').value, document.getElementById('gBl5').value);
   const row = {
     id: crypto.randomUUID(), household_id: h.id, camp_id: c.id,
-    sex, teeth, quality, weight_kg: weight, weight_method: c.weight_mode,
+    sex, teeth, quality, weight_kg: weight, weight_method: 'both',
     weight_source: eff ? eff.method : null,
-    weight_scale_kg: eff ? eff.scale : (c.weight_mode==='scale' ? weight : null),
-    weight_formula_kg: eff ? eff.formula : ((c.weight_mode==='2dim'||c.weight_mode==='5dim') ? weight : null),
-    heart_girth: c.weight_mode==='2dim' ? (parseFloat(document.getElementById('gHg').value)||null) : usesFiveDimFields ? (parseFloat(document.getElementById('gHg5').value)||null) : null,
-    body_length: c.weight_mode==='2dim' ? (parseFloat(document.getElementById('gBl').value)||null) : usesFiveDimFields ? (parseFloat(document.getElementById('gBl5').value)||null) : null,
-    height_cm: usesFiveDimFields ? (parseFloat(document.getElementById('gHt5').value)||null) : null,
-    rump_width: usesFiveDimFields ? (parseFloat(document.getElementById('gRw5').value)||null) : null,
-    paunch_girth: usesFiveDimFields ? (parseFloat(document.getElementById('gPg5').value)||null) : null,
+    weight_scale_kg: eff ? eff.scale : null,
+    weight_formula_kg: eff ? eff.formula : null,
+    heart_girth: parseFloat(document.getElementById('gHg5').value) || null,
+    body_length: parseFloat(document.getElementById('gBl5').value) || null,
+    height_cm: parseFloat(document.getElementById('gHt5').value) || null,
+    rump_width: parseFloat(document.getElementById('gRw5').value) || null,
+    paunch_girth: parseFloat(document.getElementById('gPg5').value) || null,
     ai_quality_suggested: aiSuggestedQuality || null,
     category: quote.category.key, rate_per_kg: quote.rate, buffer: quote.buffer, final_price: quote.finalPrice,
     hh_response: response, photos_taken: photosTaken, ps_name: ps.name,
