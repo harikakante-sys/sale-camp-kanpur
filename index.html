@@ -1,0 +1,1589 @@
+<!DOCTYPE html>
+<html lang="hi">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>बिक्री शिविर</title>
+<link rel="manifest" href="manifest.json">
+<meta name="theme-color" content="#1A4D3A">
+<link rel="icon" href="icons/icon-192.png">
+<!-- Supabase's client library, downloaded once and kept in this repo (vendor/)
+     instead of loaded from a CDN — so the installed app has no dependency on
+     any server other than Supabase itself once it's running. -->
+<script src="vendor/supabase-js.min.js"></script>
+<script src="pricing.js"></script>
+<style>
+  @import url('https://fonts.googleapis.com/css2?family=Noto+Sans+Devanagari:wght@400;500;600;700&family=Inter:wght@400;500;600&display=swap');
+  :root {
+    --green-dark:#1A4D3A; --green-mid:#2D7A5A; --green-light:#4CAF82; --green-pale:#E8F5EE;
+    --amber:#D4820A; --amber-pale:#FEF3DC; --red:#C0392B; --red-pale:#FDECEB;
+    --blue:#0C447C; --blue-pale:#E6F1FB;
+    --grey-900:#1C1C1C; --grey-700:#444; --grey-500:#777; --grey-300:#CCC; --grey-100:#F5F5F5;
+    --white:#FFFFFF; --radius:10px; --shadow:0 2px 12px rgba(0,0,0,0.08);
+  }
+  * { box-sizing:border-box; margin:0; padding:0; }
+  body { font-family:'Noto Sans Devanagari','Inter',sans-serif; background:#F0F4F2; color:var(--grey-900); min-height:100vh; padding-bottom:70px; }
+
+  #psOverlay { position:fixed; inset:0; background:var(--green-dark); display:flex; flex-direction:column; align-items:center; justify-content:center; z-index:1000; padding:32px 24px; overflow-y:auto; }
+  #psOverlay.hidden { display:none; }
+  .ps-logo { font-size:44px; margin-bottom:12px; }
+  .ps-title { color:white; font-size:20px; font-weight:700; margin-bottom:6px; text-align:center; }
+  .ps-subtitle { color:rgba(255,255,255,0.7); font-size:13px; margin-bottom:24px; text-align:center; }
+  .ps-options { width:100%; max-width:340px; display:flex; flex-direction:column; gap:10px; }
+  .ps-option { background:rgba(255,255,255,0.1); border:1.5px solid rgba(255,255,255,0.2); border-radius:12px; padding:16px 20px; color:white; font-size:16px; font-family:inherit; font-weight:500; cursor:pointer; text-align:left; display:flex; align-items:center; gap:12px; }
+  .ps-option:hover { background:rgba(255,255,255,0.2); border-color:var(--green-light); }
+  .ps-option .ps-icon { font-size:22px; }
+
+  header { background:var(--green-dark); color:white; padding:12px 16px; display:flex; align-items:center; justify-content:space-between; position:sticky; top:0; z-index:100; box-shadow:0 2px 8px rgba(0,0,0,0.2); }
+  .header-left { display:flex; flex-direction:column; }
+  .header-title { font-size:15px; font-weight:700; }
+  .header-sub { font-size:11px; opacity:0.75; margin-top:1px; }
+  .header-right { display:flex; align-items:center; gap:8px; }
+  .lang-toggle { display:flex; background:rgba(255,255,255,0.15); border-radius:12px; overflow:hidden; }
+  .lang-btn { border:none; background:transparent; color:rgba(255,255,255,0.75); font-size:10.5px; font-weight:700; padding:5px 9px; cursor:pointer; font-family:inherit; }
+  .lang-btn.active { background:rgba(255,255,255,0.92); color:var(--green-dark); }
+  .sync-badge { font-size:10px; padding:3px 8px; border-radius:12px; cursor:pointer; white-space:nowrap; }
+  .sync-ok { background:rgba(255,255,255,0.15); color:white; }
+  .sync-pending { background:var(--amber); color:white; }
+
+  .tabs { display:flex; background:var(--white); border-bottom:2px solid var(--grey-100); position:fixed; bottom:0; left:0; right:0; z-index:90; box-shadow:0 -2px 8px rgba(0,0,0,0.08); }
+  .tab { flex:1; padding:10px 4px; text-align:center; font-size:11px; font-weight:500; cursor:pointer; color:var(--grey-500); }
+  .tab.active { color:var(--green-dark); font-weight:700; }
+  .tab .tab-ic { font-size:18px; display:block; margin-bottom:2px; }
+
+  .screen { display:none; padding:14px; max-width:640px; margin:0 auto; }
+  .screen.active { display:block; }
+  .back-row { display:flex; align-items:center; gap:10px; margin-bottom:14px; }
+  .back-row .back-ic { font-size:20px; cursor:pointer; width:28px; height:28px; display:flex; align-items:center; justify-content:center; border-radius:8px; background:var(--grey-100); flex-shrink:0; }
+  .back-row .scr-title { font-size:17px; font-weight:700; }
+  .back-row .scr-sub { font-size:12px; color:var(--grey-500); margin-top:1px; }
+
+  .card { background:var(--white); border-radius:var(--radius); box-shadow:var(--shadow); padding:16px; margin-bottom:12px; }
+  .card-title { font-size:12px; font-weight:700; color:var(--green-dark); text-transform:uppercase; letter-spacing:0.5px; margin-bottom:12px; padding-bottom:8px; border-bottom:1px solid var(--grey-100); }
+  .field { margin-bottom:12px; }
+  .field:last-child { margin-bottom:0; }
+  label { display:block; font-size:13px; font-weight:500; color:var(--grey-700); margin-bottom:5px; }
+  label .req { color:var(--red); margin-left:2px; }
+  input[type="text"], input[type="number"], input[type="tel"], input[type="date"], select {
+    width:100%; padding:11px 13px; border:1.5px solid var(--grey-300); border-radius:8px;
+    font-size:15px; font-family:inherit; color:var(--grey-900); background:var(--white); appearance:none; -webkit-appearance:none;
+  }
+  input:focus, select:focus { outline:none; border-color:var(--green-mid); box-shadow:0 0 0 3px rgba(45,122,90,0.12); }
+  select { background-image:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='8' viewBox='0 0 12 8'%3E%3Cpath fill='%23777' d='M6 8L0 0h12z'/%3E%3C/svg%3E"); background-repeat:no-repeat; background-position:right 13px center; padding-right:36px; }
+  .row2 { display:grid; grid-template-columns:1fr 1fr; gap:10px; }
+  .row3 { display:grid; grid-template-columns:1fr 1fr 1fr; gap:10px; }
+  .toggle-group { display:flex; gap:8px; }
+  .toggle-btn { flex:1; padding:11px; border:1.5px solid var(--grey-300); border-radius:8px; background:var(--white); font-size:14px; font-family:inherit; cursor:pointer; text-align:center; color:var(--grey-700); }
+  .toggle-btn.sel { border-color:var(--green-mid); background:var(--green-pale); color:var(--green-dark); font-weight:600; }
+  .toggle-btn.sel-female { border-color:#9C4A8A; background:#F9EFF7; color:#6B2D63; }
+  .toggle-btn.sel-amber { border-color:var(--amber); background:var(--amber-pale); color:var(--amber); }
+  .toggle-btn.sel-red { border-color:var(--red); background:var(--red-pale); color:var(--red); }
+
+  .result-card { background:var(--green-pale); border:1.5px solid var(--green-light); border-radius:var(--radius); padding:16px; margin-bottom:12px; display:none; }
+  .result-card.show { display:block; }
+  .result-row { display:flex; justify-content:space-between; align-items:center; margin-bottom:8px; }
+  .result-row:last-child { margin-bottom:0; }
+  .result-label { font-size:13px; color:var(--grey-500); }
+  .result-value { font-size:15px; font-weight:700; color:var(--green-dark); }
+  .result-value.big { font-size:22px; }
+  .result-divider { border:none; border-top:1px dashed var(--green-light); margin:8px 0; }
+
+  .warning-msg { background:var(--red-pale); border:1.5px solid var(--red); color:var(--red); border-radius:8px; padding:12px 14px; font-size:13px; margin-bottom:12px; display:none; }
+  .warning-msg.show { display:block; }
+
+  .btn-primary { width:100%; padding:15px; background:var(--green-dark); color:white; border:none; border-radius:var(--radius); font-size:16px; font-family:inherit; font-weight:600; cursor:pointer; margin-bottom:8px; }
+  .btn-primary:disabled { background:var(--grey-300); cursor:not-allowed; }
+  .btn-secondary { width:100%; padding:13px; background:var(--white); color:var(--green-dark); border:1.5px solid var(--green-mid); border-radius:var(--radius); font-size:14px; font-family:inherit; font-weight:600; cursor:pointer; margin-bottom:8px; }
+
+  .photo-box { border:1.5px dashed var(--grey-300); border-radius:10px; padding:16px; text-align:center; margin-bottom:14px; cursor:pointer; }
+  .photo-box img { max-width:100%; max-height:140px; border-radius:8px; }
+  .photo-box .hint { font-size:12px; color:var(--grey-500); margin-top:6px; }
+  .photo-row { display:grid; grid-template-columns:1fr 1fr 1fr; gap:8px; }
+  .photo-box-sm { padding:10px 4px; margin-bottom:0; }
+  .photo-box-sm img { max-height:64px; }
+  .photo-box-sm .hint { font-size:9.5px; line-height:1.3; }
+
+  .list-card { background:var(--white); border-radius:12px; padding:14px; margin-bottom:10px; cursor:pointer; box-shadow:var(--shadow); }
+  .list-card-top { display:flex; justify-content:space-between; align-items:flex-start; gap:8px; }
+  .list-card-name { font-weight:700; font-size:15px; }
+  .list-card-meta { font-size:12px; color:var(--grey-500); margin:3px 0 8px; }
+  .list-card-stats { display:flex; gap:18px; }
+  .list-card-stat-label { font-size:10.5px; color:var(--grey-500); }
+  .list-card-stat-value { font-size:14px; font-weight:700; }
+  .chip { display:inline-block; padding:3px 9px; border-radius:10px; font-size:10.5px; font-weight:600; white-space:nowrap; }
+  .chip-ready { background:var(--green-pale); color:var(--green-dark); }
+  .chip-norate { background:var(--red-pale); color:var(--red); }
+
+  .goat-row { background:var(--white); border-radius:10px; padding:12px; margin-bottom:8px; box-shadow:var(--shadow); }
+  .goat-row-top { display:flex; align-items:center; gap:10px; }
+  .goat-thumb { width:38px; height:38px; border-radius:8px; background:var(--grey-100); display:flex; align-items:center; justify-content:center; font-size:17px; flex-shrink:0; overflow:hidden; }
+  .goat-info { flex:1; min-width:0; }
+  .goat-info .gname { font-size:13.5px; font-weight:600; }
+  .goat-info .gmeta { font-size:11.5px; color:var(--grey-500); }
+  .resp-row { display:flex; gap:6px; margin-top:8px; }
+  .resp-btn { flex:1; font-size:11px; padding:7px 4px; border-radius:6px; border:1.5px solid var(--grey-300); background:white; font-family:inherit; cursor:pointer; text-align:center; color:var(--grey-700); }
+  .resp-btn.resp-interested.sel { border-color:var(--green-mid); background:var(--green-pale); color:var(--green-dark); font-weight:700; }
+  .resp-btn.resp-awaited.sel { border-color:var(--amber); background:var(--amber-pale); color:var(--amber); font-weight:700; }
+  .resp-btn.resp-not_interested.sel { border-color:var(--red); background:var(--red-pale); color:var(--red); font-weight:700; }
+
+  .empty-state { text-align:center; padding:36px 20px; color:var(--grey-500); font-size:14px; }
+  .table-summary { background:var(--green-pale); border-radius:var(--radius); padding:12px 16px; margin-top:4px; margin-bottom:12px; display:flex; gap:18px; flex-wrap:wrap; }
+  .summary-item { font-size:11.5px; }
+  .summary-item strong { font-size:14.5px; color:var(--green-dark); display:block; }
+  .rate-status { display:flex; align-items:center; gap:6px; font-size:11px; padding:7px 10px; border-radius:8px; margin-bottom:12px; }
+  .rate-status.ok { background:var(--green-pale); color:var(--green-dark); }
+  .rate-status.bad { background:var(--red-pale); color:var(--red); }
+
+  .success-toast { position:fixed; bottom:80px; left:50%; transform:translateX(-50%) translateY(80px); background:var(--green-dark); color:white; padding:12px 24px; border-radius:24px; font-size:14px; font-weight:500; box-shadow:0 4px 16px rgba(0,0,0,0.2); transition:transform 0.3s; z-index:999; white-space:nowrap; }
+  .success-toast.show { transform:translateX(-50%) translateY(0); }
+
+  /* Home screen: today's camp front and center, everything else demoted */
+  .hero-card { background:var(--green-dark); color:white; border-radius:14px; padding:18px; margin-bottom:10px; box-shadow:var(--shadow); cursor:pointer; }
+  .hero-card.hero-empty { background:var(--white); color:var(--grey-900); text-align:center; cursor:default; box-shadow:var(--shadow); }
+  .hero-label { font-size:11px; text-transform:uppercase; letter-spacing:0.5px; opacity:0.75; margin-bottom:4px; }
+  .hero-village { font-size:20px; font-weight:700; }
+  .hero-meta { font-size:12px; opacity:0.8; margin-top:2px; }
+  .hero-card .table-summary { background:rgba(255,255,255,0.14); }
+  .hero-card .summary-item strong { color:white; }
+  .hero-card .summary-item span { color:rgba(255,255,255,0.75); }
+  .hero-card .btn-primary { background:white; color:var(--green-dark); margin-top:10px; margin-bottom:0; }
+  .hero-empty-icon { font-size:32px; margin-bottom:8px; }
+  .hero-empty-text { font-size:13px; color:var(--grey-500); margin-bottom:12px; }
+  .history-toggle { font-size:13px; font-weight:600; color:var(--green-dark); padding:12px 2px; cursor:pointer; }
+
+  /* Generic modal overlay, used by the goat-saved and quick-price-check popups */
+  .modal-overlay { position:fixed; inset:0; background:rgba(0,0,0,0.5); display:flex; align-items:center; justify-content:center; z-index:1000; padding:20px; }
+  .modal-card { background:white; border-radius:14px; padding:24px 20px; max-width:360px; width:100%; text-align:center; box-shadow:0 8px 32px rgba(0,0,0,0.25); max-height:90vh; overflow-y:auto; }
+  .modal-icon { font-size:36px; margin-bottom:8px; }
+  .modal-title { font-size:18px; font-weight:700; margin-bottom:4px; }
+  .modal-sub { font-size:13px; color:var(--grey-500); margin-bottom:18px; }
+
+  .settings-btn { background:rgba(255,255,255,0.15); border:none; color:white; font-size:16px; width:28px; height:28px; border-radius:8px; cursor:pointer; display:flex; align-items:center; justify-content:center; }
+  .settings-row { display:flex; align-items:center; justify-content:space-between; padding:12px 0; border-bottom:1px solid var(--grey-100); }
+  .settings-row:last-child { border-bottom:none; }
+  .settings-label { font-size:14px; font-weight:500; }
+  .settings-sub { font-size:11.5px; color:var(--grey-500); margin-top:2px; }
+  .btn-small { padding:8px 14px; border:1.5px solid var(--green-mid); border-radius:8px; background:var(--white); color:var(--green-dark); font-size:13px; font-family:inherit; font-weight:600; cursor:pointer; }
+
+  /* AI quality suggestion */
+  .ai-quality-row { display:flex; align-items:center; gap:8px; margin-bottom:8px; padding:10px 12px; background:var(--amber-pale); border:1.5px solid var(--amber); border-radius:8px; }
+  .ai-quality-row.hidden { display:none; }
+  .ai-quality-label { font-size:12px; color:var(--amber); flex:1; }
+  .ai-accept-btn { padding:6px 12px; background:var(--amber); color:white; border:none; border-radius:6px; font-size:12px; font-family:inherit; font-weight:700; cursor:pointer; }
+  @keyframes spin { to { transform:rotate(360deg); } }
+  .spinner { display:inline-block; width:14px; height:14px; border:2px solid var(--grey-300); border-top-color:var(--amber); border-radius:50%; animation:spin 0.8s linear infinite; vertical-align:middle; margin-right:4px; }
+
+  /* 'both' weight mode: scale + tape shown together with the lower one called out */
+  .eff-weight-row { display:flex; align-items:center; justify-content:space-between; background:var(--green-pale); border-radius:8px; padding:10px 13px; margin-top:10px; }
+  .eff-weight-label { font-size:12px; color:var(--green-dark); }
+  .eff-weight-value { font-size:18px; font-weight:700; color:var(--green-dark); }
+  .eff-weight-breakdown { font-size:10.5px; color:var(--grey-500); margin-top:2px; }
+</style>
+</head>
+<body>
+
+<!-- ══ PS SELECTION (once per device) ══ -->
+<div id="psOverlay">
+  <div class="ps-logo">🐐</div>
+  <div class="ps-title" data-en="Sale Camp" data-hi="बिक्री शिविर">बिक्री शिविर</div>
+  <div class="ps-subtitle" data-en="Who are you? Select your name" data-hi="आप कौन हैं? अपना नाम चुनें">आप कौन हैं? अपना नाम चुनें</div>
+  <div class="ps-options" id="psOptions"><div style="color:white; font-size:13px;">लोड हो रहा है...</div></div>
+</div>
+
+<!-- ══ HEADER ══ -->
+<header>
+  <div class="header-left">
+    <div class="header-title">🐐 <span data-en="Sale Camp" data-hi="बिक्री शिविर">बिक्री शिविर</span></div>
+    <div class="header-sub" id="headerPsLine">—</div>
+  </div>
+  <div class="header-right">
+    <div class="lang-toggle">
+      <button class="lang-btn" id="langBtnHi" onclick="setLang('hi')">हिं</button>
+      <button class="lang-btn" id="langBtnEn" onclick="setLang('en')">EN</button>
+    </div>
+    <div class="sync-badge sync-ok" id="syncBadge" onclick="flushQueue(true)">✓ Synced</div>
+    <button class="settings-btn" onclick="showScreen('settings')" aria-label="Settings">⚙️</button>
+  </div>
+</header>
+<div id="syncErrorBar" style="display:none; background:var(--red-pale); color:var(--red); font-size:11px; padding:6px 14px;"></div>
+
+<!-- ══ SCREEN: CAMPS (home) ══ -->
+<div class="screen active" id="screen-camps">
+  <div id="homeHero"></div>
+  <div class="history-toggle" id="historyToggle" onclick="toggleHistory()">
+    <span id="historyToggleLabel">▾ Other recent camps</span>
+  </div>
+  <div id="campsList" style="display:none;"></div>
+</div>
+
+<!-- ══ SCREEN: NEW CAMP ══ -->
+<div class="screen" id="screen-newcamp">
+  <div class="back-row"><div class="back-ic" onclick="showScreen('camps')">←</div><div><div class="scr-title" data-en="New camp" data-hi="नया शिविर">नया शिविर</div></div></div>
+  <div class="card">
+    <div class="field"><label class="req" data-en="Village name" data-hi="गांव का नाम">गांव का नाम</label><input type="text" id="newVillage" data-ph-en="e.g. Rampura" data-ph-hi="जैसे रामपुरा" placeholder="जैसे रामपुरा"></div>
+    <div class="field"><label class="req" data-en="Region" data-hi="क्षेत्र">क्षेत्र</label><select id="newRegion"></select>
+      <div style="font-size:11px;color:var(--grey-500);margin-top:4px;" data-en="Determines which rate card applies" data-hi="यह तय करता है कि कौन सा रेट कार्ड लागू होगा">यह तय करता है कि कौन सा रेट कार्ड लागू होगा</div>
+    </div>
+    <div class="field"><label class="req" data-en="Date" data-hi="तारीख">तारीख</label><input type="date" id="newCampDate"></div>
+  </div>
+  <button class="btn-primary" onclick="createCamp()" data-en="Start camp" data-hi="शिविर शुरू करें">शिविर शुरू करें</button>
+</div>
+
+<!-- ══ SCREEN: CAMP DETAIL (households) ══ -->
+<div class="screen" id="screen-campdetail">
+  <div class="back-row"><div class="back-ic" onclick="showScreen('camps')">←</div>
+    <div><div class="scr-title" id="cdVillage">—</div><div class="scr-sub" id="cdMeta">—</div></div>
+  </div>
+  <div class="rate-status" id="cdRateStatus">—</div>
+  <div class="table-summary" id="cdSummary">
+    <div class="summary-item"><strong id="cdHhCount">0</strong><span data-en="Homes" data-hi="घर">घर</span></div>
+    <div class="summary-item"><strong id="cdGoatCount">0</strong><span data-en="Animals" data-hi="पशु">पशु</span></div>
+    <div class="summary-item"><strong id="cdInterestedValue">₹0</strong><span data-en="Interested value" data-hi="इच्छुक मूल्य">इच्छुक मूल्य</span></div>
+  </div>
+  <div id="hhList"><div class="empty-state" data-en="No households added yet" data-hi="अभी कोई घर नहीं जोड़ा गया">अभी कोई घर नहीं जोड़ा गया</div></div>
+  <button class="btn-primary" onclick="showScreen('newhousehold')" style="margin-top:6px;">➕ <span data-en="Add household" data-hi="घर जोड़ें">घर जोड़ें</span></button>
+</div>
+
+<!-- ══ SCREEN: NEW HOUSEHOLD ══ -->
+<div class="screen" id="screen-newhousehold">
+  <div class="back-row"><div class="back-ic" onclick="showScreen('campdetail')">←</div><div><div class="scr-title" data-en="New household" data-hi="नया घर">नया घर</div></div></div>
+  <div class="card">
+    <div class="field"><label class="req" data-en="Household name" data-hi="घर का नाम">घर का नाम</label><input type="text" id="hhName" data-ph-en="Enter name" data-ph-hi="नाम लिखें" placeholder="नाम लिखें"></div>
+    <div class="field"><label data-en="Mobile number" data-hi="मोबाइल नंबर">मोबाइल नंबर</label><input type="tel" id="hhMobile" data-ph-en="10-digit number" data-ph-hi="10 अंकों का नंबर" placeholder="10 अंकों का नंबर"></div>
+    <div class="field"><label class="req" data-en="How many goats to sell" data-hi="कितनी बकरियां बेचनी हैं">कितनी बकरियां बेचनी हैं</label><input type="number" id="hhExpected" min="1" data-ph-en="e.g. 3" data-ph-hi="जैसे 3" placeholder="जैसे 3"></div>
+  </div>
+  <button class="btn-primary" onclick="createHousehold()" data-en="Add household" data-hi="घर जोड़ें">घर जोड़ें</button>
+</div>
+
+<!-- ══ SCREEN: HOUSEHOLD DETAIL (goats) ══ -->
+<div class="screen" id="screen-householddetail">
+  <div class="back-row"><div class="back-ic" onclick="showScreen('campdetail')">←</div>
+    <div><div class="scr-title" id="hdName">—</div><div class="scr-sub" id="hdMeta">—</div></div>
+  </div>
+  <div class="table-summary" id="hdSummary">
+    <div class="summary-item"><strong id="hdGoatCount">0 / 0</strong><span data-en="Animals added" data-hi="पशु जोड़े गए">पशु जोड़े गए</span></div>
+    <div class="summary-item"><strong id="hdInterestedValue">₹0</strong><span data-en="Interested value" data-hi="इच्छुक मूल्य">इच्छुक मूल्य</span></div>
+  </div>
+  <div id="goatList"><div class="empty-state" data-en="No animals added yet" data-hi="अभी कोई पशु नहीं जोड़ा गया">अभी कोई पशु नहीं जोड़ा गया</div></div>
+  <button class="btn-primary" onclick="showScreen('newgoat')" style="margin-top:6px;">➕ <span data-en="Add animal" data-hi="पशु जोड़ें">पशु जोड़ें</span></button>
+</div>
+
+<!-- ══ SCREEN: NEW GOAT ══ -->
+<div class="screen" id="screen-newgoat">
+  <div class="back-row"><div class="back-ic" onclick="showScreen('householddetail')">←</div><div><div class="scr-title" data-en="New animal" data-hi="नया पशु">नया पशु</div><div class="scr-sub" id="ngHhLine">—</div></div></div>
+  <div id="ngProgress" style="font-size:12px; color:var(--green-dark); font-weight:600; margin:-6px 0 12px 38px;">—</div>
+
+  <div class="card">
+    <div class="card-title" data-en="Animal photos (3 angles)" data-hi="पशु के फोटो (3 कोण से)">पशु के फोटो (3 कोण से)</div>
+    <div class="photo-row">
+      <div>
+        <div class="photo-box photo-box-sm" id="photoBox1" onclick="document.getElementById('photoInput1').click()">
+          <div id="photoPlaceholder1">📷<div class="hint" data-en="Photo 1 (Front)" data-hi="फोटो 1 (सामने)">फोटो 1 (सामने)</div></div>
+          <img id="photoPreview1" style="display:none;">
+        </div>
+        <input type="file" id="photoInput1" accept="image/*" capture="environment" style="display:none;" onchange="onPhotoSelected(event,1)">
+      </div>
+      <div>
+        <div class="photo-box photo-box-sm" id="photoBox2" onclick="document.getElementById('photoInput2').click()">
+          <div id="photoPlaceholder2">📷<div class="hint" data-en="Photo 2 (Side)" data-hi="फोटो 2 (साइड से)">फोटो 2 (साइड से)</div></div>
+          <img id="photoPreview2" style="display:none;">
+        </div>
+        <input type="file" id="photoInput2" accept="image/*" capture="environment" style="display:none;" onchange="onPhotoSelected(event,2)">
+      </div>
+      <div>
+        <div class="photo-box photo-box-sm" id="photoBox3" onclick="document.getElementById('photoInput3').click()">
+          <div id="photoPlaceholder3">📷<div class="hint" data-en="Photo 3 (Back)" data-hi="फोटो 3 (पीछे से)">फोटो 3 (पीछे से)</div></div>
+          <img id="photoPreview3" style="display:none;">
+        </div>
+        <input type="file" id="photoInput3" accept="image/*" capture="environment" style="display:none;" onchange="onPhotoSelected(event,3)">
+      </div>
+    </div>
+    <div class="ai-quality-row hidden" id="aiQualityRow" style="margin-top:10px;">
+      <span class="ai-quality-label" id="aiQualityLabel">—</span>
+      <button class="ai-accept-btn" onclick="acceptAIQuality()" data-en="Use this" data-hi="इसे उपयोग करें">इसे उपयोग करें</button>
+    </div>
+  </div>
+
+  <div class="card">
+    <div class="card-title" style="display:flex; justify-content:space-between; align-items:center;">
+      <span data-en="Animal details" data-hi="पशु की जानकारी">पशु की जानकारी</span>
+      <span style="text-transform:none; letter-spacing:normal; font-weight:600; cursor:pointer; color:var(--green-mid);" onclick="openQuickCalc()">🧮 <span data-en="Quick check" data-hi="त्वरित जांच">त्वरित जांच</span></span>
+    </div>
+    <div class="field">
+      <label class="req" data-en="Male / Female" data-hi="नर / मादा">नर / मादा</label>
+      <div class="toggle-group">
+        <button class="toggle-btn" id="btnMale" onclick="setSex('male')">🐐 <span data-en="Male" data-hi="नर">नर</span></button>
+        <button class="toggle-btn" id="btnFemale" onclick="setSex('female')">🐑 <span data-en="Female" data-hi="मादा">मादा</span></button>
+      </div>
+    </div>
+    <div class="row2">
+      <div class="field"><label class="req" data-en="Teeth" data-hi="दांत">दांत</label>
+        <select id="gTeeth" onchange="recalcAddGoat()">
+          <option value="" data-en="Select" data-hi="चुनें">चुनें</option>
+          <option value="0" data-en="0 (milk teeth)" data-hi="0 (दूध के दांत)">0 (दूध के दांत)</option>
+          <option value="2" data-en="2 teeth" data-hi="2 दांत">2 दांत</option>
+          <option value="4" data-en="4 teeth" data-hi="4 दांत">4 दांत</option>
+          <option value="6" data-en="6 teeth" data-hi="6 दांत">6 दांत</option>
+          <option value="8" data-en="8 teeth" data-hi="8 दांत">8 दांत</option>
+        </select>
+      </div>
+      <div class="field"><label class="req" data-en="Quality" data-hi="क्वालिटी">क्वालिटी</label>
+        <select id="gQuality" onchange="recalcAddGoat()">
+          <option value="" data-en="Select" data-hi="चुनें">चुनें</option>
+          <option value="1st" data-en="First (1st)" data-hi="पहली (1st)">पहली (1st)</option>
+          <option value="2nd" data-en="Second (2nd)" data-hi="दूसरी (2nd)">दूसरी (2nd)</option>
+          <option value="3rd" data-en="Third (3rd)" data-hi="तीसरी (3rd)">तीसरी (3rd)</option>
+        </select>
+      </div>
+    </div>
+
+    <div id="scaleFields">
+      <div class="field"><label class="req" data-en="Weight (kg) - from scale" data-hi="वजन (kg) - तराजू से">वजन (kg) - तराजू से</label><input type="number" id="gWeightScale" min="1" max="120" data-ph-en="e.g. 22" data-ph-hi="जैसे 22" placeholder="जैसे 22" oninput="recalcAddGoat()"></div>
+    </div>
+    <div id="tapeFields2" style="display:none;">
+      <div class="row2">
+        <div class="field"><label class="req" data-en="Heart girth (cm)" data-hi="हार्ट गर्थ (cm)">हार्ट गर्थ (cm)</label><input type="number" id="gHg" oninput="recalcAddGoat()"></div>
+        <div class="field"><label class="req" data-en="Body length (cm)" data-hi="बॉडी लेंथ (cm)">बॉडी लेंथ (cm)</label><input type="number" id="gBl" oninput="recalcAddGoat()"></div>
+      </div>
+      <div class="field" id="tapeOut2Wrap"><label data-en="Estimated weight" data-hi="अनुमानित वजन">अनुमानित वजन</label><input type="text" id="gWeightTapeOut2" readonly style="background:#F8F8F8;" value="-- kg"></div>
+      <div class="eff-weight-row" id="effWeightRow" style="display:none;">
+        <div>
+          <div class="eff-weight-label" data-en="Effective weight (lower)" data-hi="प्रभावी वजन (न्यूनतम)">प्रभावी वजन (न्यूनतम)</div>
+          <div class="eff-weight-breakdown" id="effWeightBreakdown">—</div>
+        </div>
+        <div class="eff-weight-value" id="effWeightVal">— kg</div>
+      </div>
+    </div>
+    <div id="tapeFields5" style="display:none;">
+      <div class="row2">
+        <div class="field"><label class="req" data-en="Heart girth (cm)" data-hi="हार्ट गर्थ (cm)">हार्ट गर्थ (cm)</label><input type="number" id="gHg5" oninput="recalcAddGoat()"></div>
+        <div class="field"><label class="req" data-en="Body length (cm)" data-hi="बॉडी लेंथ (cm)">बॉडी लेंथ (cm)</label><input type="number" id="gBl5" oninput="recalcAddGoat()"></div>
+      </div>
+      <div class="row3">
+        <div class="field"><label data-en="Height (cm)" data-hi="ऊंचाई (cm)">ऊंचाई (cm)</label><input type="number" id="gHt5"></div>
+        <div class="field"><label data-en="Rump width" data-hi="रम्प चौड़ाई">रम्प चौड़ाई</label><input type="number" id="gRw5"></div>
+        <div class="field"><label data-en="Paunch girth" data-hi="पौंच गर्थ">पौंच गर्थ</label><input type="number" id="gPg5"></div>
+      </div>
+      <div class="field"><label data-en="Estimated weight" data-hi="अनुमानित वजन">अनुमानित वजन</label><input type="text" id="gWeightTapeOut5" readonly style="background:#F8F8F8;" value="-- kg"></div>
+    </div>
+  </div>
+
+  <div class="warning-msg" id="gWarning" data-en="⚠️ This animal doesn't fall in our purchase category (only young males and old females)." data-hi="⚠️ यह पशु हमारी खरीद श्रेणी में नहीं आता (केवल युवा नर और पुरानी मादा)।">⚠️ यह पशु हमारी खरीद श्रेणी में नहीं आता (केवल युवा नर और पुरानी मादा)।</div>
+  <div class="warning-msg" id="gNoRate" data-en="⚠️ No valid rate card is available for this region. Connect to the internet once and sync." data-hi="⚠️ इस क्षेत्र के लिए कोई मान्य रेट कार्ड उपलब्ध नहीं है। इंटरनेट से एक बार जुड़ें और सिंक करें।">⚠️ इस क्षेत्र के लिए कोई मान्य रेट कार्ड उपलब्ध नहीं है। इंटरनेट से एक बार जुड़ें और सिंक करें।</div>
+
+  <div class="result-card" id="gResult">
+    <div class="result-row"><span class="result-label" data-en="Category" data-hi="श्रेणी">श्रेणी</span><span class="result-value" id="gCat">—</span></div>
+    <div class="result-row"><span class="result-label" data-en="Rate card (₹/kg)" data-hi="रेट कार्ड (₹/kg)">रेट कार्ड (₹/kg)</span><span class="result-value" id="gRate">—</span></div>
+    <hr class="result-divider">
+    <div class="result-row"><span class="result-label" data-en="Final price" data-hi="अंतिम मूल्य">अंतिम मूल्य</span><span class="result-value big" id="gFinal">₹—</span></div>
+  </div>
+
+  <div class="card">
+    <div class="card-title" data-en="Household response" data-hi="घर की प्रतिक्रिया">घर की प्रतिक्रिया</div>
+    <div class="toggle-group">
+      <button class="toggle-btn" id="respInterested" onclick="setResponse('interested')">✅ <span data-en="Interested" data-hi="इच्छुक">इच्छुक</span></button>
+      <button class="toggle-btn" id="respAwaited" onclick="setResponse('awaited')">⏳ <span data-en="Awaited decision" data-hi="सोच रहे">सोच रहे</span></button>
+      <button class="toggle-btn" id="respNotInterested" onclick="setResponse('not_interested')">❌ <span data-en="Not interested" data-hi="अनिच्छुक">अनिच्छुक</span></button>
+    </div>
+  </div>
+
+  <button class="btn-primary" id="btnSaveGoat" onclick="saveGoat()" disabled style="margin-top:12px;">💾 <span data-en="Save" data-hi="सहेजें">सहेजें</span></button>
+</div>
+
+<!-- ══ SCREEN: CALCULATOR ══ -->
+<div class="screen" id="screen-calc">
+  <div class="card">
+    <div class="card-title" data-en="Quick calculator" data-hi="त्वरित कैलकुलेटर">त्वरित कैलकुलेटर</div>
+    <div style="font-size:11px;color:var(--grey-500);margin-bottom:12px;" data-en="Not linked to any record - for estimation only" data-hi="किसी रिकॉर्ड से जुड़ा नहीं - सिर्फ अनुमान के लिए">किसी रिकॉर्ड से जुड़ा नहीं - सिर्फ अनुमान के लिए</div>
+    <div class="field"><label class="req" data-en="Region" data-hi="क्षेत्र">क्षेत्र</label><select id="cRegion" onchange="recalcCalc()"></select></div>
+    <div class="field">
+      <label class="req" data-en="Male / Female" data-hi="नर / मादा">नर / मादा</label>
+      <div class="toggle-group">
+        <button class="toggle-btn" id="cBtnMale" onclick="setCalcSex('male')">🐐 <span data-en="Male" data-hi="नर">नर</span></button>
+        <button class="toggle-btn" id="cBtnFemale" onclick="setCalcSex('female')">🐑 <span data-en="Female" data-hi="मादा">मादा</span></button>
+      </div>
+    </div>
+    <div class="row2">
+      <div class="field"><label class="req" data-en="Teeth" data-hi="दांत">दांत</label>
+        <select id="cTeeth" onchange="recalcCalc()">
+          <option value="" data-en="Select" data-hi="चुनें">चुनें</option>
+          <option value="0" data-en="0 (milk teeth)" data-hi="0 (दूध के दांत)">0 (दूध के दांत)</option>
+          <option value="2" data-en="2 teeth" data-hi="2 दांत">2 दांत</option>
+          <option value="4" data-en="4 teeth" data-hi="4 दांत">4 दांत</option>
+          <option value="6" data-en="6 teeth" data-hi="6 दांत">6 दांत</option>
+          <option value="8" data-en="8 teeth" data-hi="8 दांत">8 दांत</option>
+        </select>
+      </div>
+      <div class="field"><label class="req" data-en="Quality" data-hi="क्वालिटी">क्वालिटी</label>
+        <select id="cQuality" onchange="recalcCalc()">
+          <option value="" data-en="Select" data-hi="चुनें">चुनें</option>
+          <option value="1st" data-en="First" data-hi="पहली">पहली</option>
+          <option value="2nd" data-en="Second" data-hi="दूसरी">दूसरी</option>
+          <option value="3rd" data-en="Third" data-hi="तीसरी">तीसरी</option>
+        </select>
+      </div>
+    </div>
+    <div class="field"><label class="req" data-en="Weight (kg)" data-hi="वजन (kg)">वजन (kg)</label><input type="number" id="cWeight" oninput="recalcCalc()"></div>
+  </div>
+  <div class="warning-msg" id="cWarning" data-en="⚠️ This animal doesn't fall in our purchase category." data-hi="⚠️ यह पशु हमारी खरीद श्रेणी में नहीं आता।">⚠️ यह पशु हमारी खरीद श्रेणी में नहीं आता।</div>
+  <div class="result-card" id="cResult">
+    <div class="result-row"><span class="result-label" data-en="Category" data-hi="श्रेणी">श्रेणी</span><span class="result-value" id="cCat">—</span></div>
+    <div class="result-row"><span class="result-label" data-en="Rate card (₹/kg)" data-hi="रेट कार्ड (₹/kg)">रेट कार्ड (₹/kg)</span><span class="result-value" id="cRate">—</span></div>
+    <hr class="result-divider">
+    <div class="result-row"><span class="result-label" data-en="Estimated price" data-hi="अनुमानित मूल्य">अनुमानित मूल्य</span><span class="result-value big" id="cFinal">₹—</span></div>
+  </div>
+</div>
+
+<!-- ══ SCREEN: SETTINGS ══ -->
+<div class="screen" id="screen-settings">
+  <div class="back-row"><div class="back-ic" onclick="showScreen('camps')">←</div><div><div class="scr-title" data-en="Settings" data-hi="सेटिंग्स">सेटिंग्स</div></div></div>
+
+  <div class="card">
+    <div class="card-title" data-en="Claude AI - quality suggestion" data-hi="Claude AI - क्वालिटी पहचान">Claude AI - क्वालिटी पहचान</div>
+    <p style="font-size:13px; color:var(--grey-500); margin-bottom:4px;" data-en="AI will automatically suggest a quality grade once all 3 angle photos are taken." data-hi="तीनों फोटो लेने के बाद AI स्वचालित रूप से क्वालिटी का अनुमान लगाएगा।">तीनों फोटो लेने के बाद AI स्वचालित रूप से क्वालिटी का अनुमान लगाएगा।</p>
+    <p style="font-size:11.5px; color:var(--grey-500);" id="aiProxyStatus">—</p>
+    <p style="font-size:11.5px; color:var(--amber, #b45309); margin-top:6px;" id="aiLastError"></p>
+  </div>
+
+  <div class="card">
+    <div class="card-title" data-en="Change PS" data-hi="PS बदलें">PS बदलें</div>
+    <div class="settings-row">
+      <div>
+        <div class="settings-label" id="settingsPsName">—</div>
+        <div class="settings-sub" data-en="Current PS" data-hi="वर्तमान PS">वर्तमान PS</div>
+      </div>
+      <button class="btn-small" onclick="changePSUser()" data-en="Change" data-hi="बदलें">बदलें</button>
+    </div>
+  </div>
+
+  <div class="card">
+    <div class="card-title" data-en="Data" data-hi="डेटा">डेटा</div>
+    <div class="settings-row">
+      <div>
+        <div class="settings-label" data-en="Sync" data-hi="सिंक करें">सिंक करें</div>
+        <div class="settings-sub" id="settingsPendingCount">—</div>
+      </div>
+      <button class="btn-small" onclick="flushQueue(true)">Sync</button>
+    </div>
+    <div class="settings-row" id="settingsFailedRow" style="display:none;">
+      <div>
+        <div class="settings-label" style="color:var(--red);" data-en="Failed records" data-hi="असफल रिकॉर्ड">असफल रिकॉर्ड</div>
+        <div class="settings-sub" id="settingsFailedCount">—</div>
+      </div>
+      <button class="btn-small" onclick="retryFailed()" data-en="Retry" data-hi="फिर कोशिश करें">फिर कोशिश करें</button>
+    </div>
+    <div class="settings-row">
+      <div>
+        <div class="settings-label" style="color:var(--red);" data-en="Clear data" data-hi="डेटा साफ करें">डेटा साफ करें</div>
+        <div class="settings-sub" data-en="Erase all local data (be careful!)" data-hi="सभी local data मिटाएं (सावधानी से!)">सभी local data मिटाएं (सावधानी से!)</div>
+      </div>
+      <button class="btn-small" style="color:var(--red); border-color:var(--red);" onclick="clearAllData()" data-en="Erase" data-hi="मिटाएं">मिटाएं</button>
+    </div>
+  </div>
+</div>
+
+<div class="success-toast" id="toast"></div>
+
+<!-- ══ OVERLAY: GOAT SAVED (choose to add another or go back) ══ -->
+<div class="modal-overlay" id="goatSavedOverlay" style="display:none;">
+  <div class="modal-card">
+    <div class="modal-icon">✅</div>
+    <div class="modal-title" id="goatSavedTitle">—</div>
+    <div class="modal-sub" id="goatSavedSub">—</div>
+    <button class="btn-primary" onclick="continueAddingGoats()">➕ <span data-en="Add another goat" data-hi="एक और पशु जोड़ें">एक और पशु जोड़ें</span></button>
+    <button class="btn-secondary" onclick="finishHouseholdGoats()">✅ <span data-en="Done - back to household" data-hi="हो गया - घर पर वापस जाएं">हो गया - घर पर वापस जाएं</span></button>
+  </div>
+</div>
+
+<!-- ══ OVERLAY: QUICK PRICE CHECK (doesn't touch the goat you're adding) ══ -->
+<div class="modal-overlay" id="quickCalcOverlay" style="display:none;">
+  <div class="modal-card" style="text-align:left;">
+    <div class="modal-title" style="text-align:center;" data-en="Quick price check" data-hi="त्वरित मूल्य जांच">त्वरित मूल्य जांच</div>
+    <div class="modal-sub" style="text-align:center;" data-en="Doesn't affect the animal you're adding" data-hi="आप जो पशु जोड़ रहे हैं उस पर असर नहीं पड़ता">आप जो पशु जोड़ रहे हैं उस पर असर नहीं पड़ता</div>
+    <div class="field">
+      <label class="req" data-en="Male / Female" data-hi="नर / मादा">नर / मादा</label>
+      <div class="toggle-group">
+        <button class="toggle-btn" id="qcBtnMale" onclick="setQuickCalcSex('male')">🐐 <span data-en="Male" data-hi="नर">नर</span></button>
+        <button class="toggle-btn" id="qcBtnFemale" onclick="setQuickCalcSex('female')">🐑 <span data-en="Female" data-hi="मादा">मादा</span></button>
+      </div>
+    </div>
+    <div class="row2">
+      <div class="field"><label class="req" data-en="Teeth" data-hi="दांत">दांत</label>
+        <select id="qcTeeth" onchange="recalcQuickCalc()">
+          <option value="" data-en="Select" data-hi="चुनें">चुनें</option>
+          <option value="0" data-en="0 (milk teeth)" data-hi="0 (दूध के दांत)">0 (दूध के दांत)</option>
+          <option value="2" data-en="2 teeth" data-hi="2 दांत">2 दांत</option>
+          <option value="4" data-en="4 teeth" data-hi="4 दांत">4 दांत</option>
+          <option value="6" data-en="6 teeth" data-hi="6 दांत">6 दांत</option>
+          <option value="8" data-en="8 teeth" data-hi="8 दांत">8 दांत</option>
+        </select>
+      </div>
+      <div class="field"><label class="req" data-en="Quality" data-hi="क्वालिटी">क्वालिटी</label>
+        <select id="qcQuality" onchange="recalcQuickCalc()">
+          <option value="" data-en="Select" data-hi="चुनें">चुनें</option>
+          <option value="1st" data-en="First (1st)" data-hi="पहली (1st)">पहली (1st)</option>
+          <option value="2nd" data-en="Second (2nd)" data-hi="दूसरी (2nd)">दूसरी (2nd)</option>
+          <option value="3rd" data-en="Third (3rd)" data-hi="तीसरी (3rd)">तीसरी (3rd)</option>
+        </select>
+      </div>
+    </div>
+    <div class="field"><label class="req" data-en="Weight (kg)" data-hi="वजन (kg)">वजन (kg)</label><input type="number" id="qcWeight" oninput="recalcQuickCalc()"></div>
+    <div class="warning-msg" id="qcWarning" data-en="⚠️ Doesn't fall in our purchase category." data-hi="⚠️ यह पशु हमारी खरीद श्रेणी में नहीं आता।">⚠️ यह पशु हमारी खरीद श्रेणी में नहीं आता।</div>
+    <div class="result-card" id="qcResult">
+      <div class="result-row"><span class="result-label" data-en="Category" data-hi="श्रेणी">श्रेणी</span><span class="result-value" id="qcCat">—</span></div>
+      <hr class="result-divider">
+      <div class="result-row"><span class="result-label" data-en="Estimated price" data-hi="अनुमानित मूल्य">अनुमानित मूल्य</span><span class="result-value big" id="qcFinal">₹—</span></div>
+    </div>
+    <button class="btn-secondary" style="margin-top:12px;" onclick="closeQuickCalc()" data-en="Close" data-hi="बंद करें">बंद करें</button>
+  </div>
+</div>
+
+<!-- ══ TABS ══ -->
+<div class="tabs">
+  <div class="tab active" data-tab="camps" onclick="showScreen('camps')"><span class="tab-ic">🏠</span><span data-en="Camps" data-hi="शिविर">शिविर</span></div>
+  <div class="tab" data-tab="calc" onclick="showScreen('calc')"><span class="tab-ic">🧮</span><span data-en="Calculator" data-hi="कैलकुलेटर">कैलकुलेटर</span></div>
+</div>
+
+<script>
+/* ═══════════════════════════════════════════════════════════
+   CONFIG — fill these in after creating your Supabase project
+   Settings > API in your Supabase dashboard
+   ═══════════════════════════════════════════════════════════ */
+const SUPABASE_URL = "https://qiggtdqsxwssieznuuwq.supabase.co";
+const SUPABASE_ANON_KEY = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InFpZ2d0ZHFzeHdzc2llem51dXdxIiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODMzNDg3MDcsImV4cCI6MjA5ODkyNDcwN30.d3205FMU7nuel1_eANgvj4bYRAH5iTKJ4CopMvMo-r4";
+const FALLBACK_REGIONS = ["Sarwankhera", "Akbarpur", "Amraudha"];
+const HISTORY_DAYS = 15;
+// URL of the Google Apps Script proxy that holds the real Claude API key
+// server-side (see claude_proxy_appsscript.gs in the sale-camp-v2 folder —
+// this is the same proxy, shared across both apps since it's just an HTTP
+// endpoint, not tied to one frontend). The app never sees the key itself —
+// it just calls this URL with 3 photos and gets back a suggested quality.
+const CLAUDE_PROXY_URL = "https://script.google.com/macros/s/AKfycbxBS2EvErzUMkbuVHCbEhRN2kChtlVIexXZHFPsALKfK6zF3TA7idhxVt7a09VVTZJS/exec";
+
+const sb = (SUPABASE_URL.startsWith("http")) ? window.supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY) : null;
+
+/* ═══════════════════════ LANGUAGE (Hindi default, English toggle) ═══════════════════════
+   Static text uses data-en/data-hi attributes swapped by applyLang().
+   Dynamic (JS-generated) text uses the L(en, hi) helper below. */
+const store = {
+  get(key, fallback) { try { const v = localStorage.getItem(key); return v ? JSON.parse(v) : fallback; } catch(e) { return fallback; } },
+  set(key, val) { localStorage.setItem(key, JSON.stringify(val)); }
+};
+
+let lang = store.get('sc_lang', 'hi');
+function L(en, hi) { return lang === 'en' ? en : hi; }
+
+// Category labels shown on-screen. pricing.js's own `label` field is Hindi-only
+// (kept as-is — it's covered by the pricing tests and not worth touching for a
+// display-only change), so the UI maps category.key to a bilingual label here.
+const CATEGORY_LABELS = {
+  young_male_small:   { hi: 'नर - छोटा (<17 kg)', en: 'Young male - small (<17 kg)' },
+  young_male_regular: { hi: 'नर - सामान्य (17-26 kg)', en: 'Young male - regular (17-26 kg)' },
+  young_male_body:    { hi: 'नर - बड़ा (>26 kg)', en: 'Young male - large (>26 kg)' },
+  old_female:         { hi: 'पुरानी मादा (6-8 दांत)', en: 'Old female (6-8 teeth)' }
+};
+function categoryLabel(key) { return (CATEGORY_LABELS[key] && CATEGORY_LABELS[key][lang]) || key; }
+function fmtNum(n) { return n.toLocaleString(lang === 'en' ? 'en-IN' : 'hi-IN'); }
+
+function setLang(l) { lang = l; store.set('sc_lang', lang); applyLang(); }
+
+function applyLang() {
+  document.documentElement.lang = lang;
+  document.querySelectorAll('[data-en]').forEach(el => {
+    el.textContent = lang === 'en' ? el.getAttribute('data-en') : el.getAttribute('data-hi');
+  });
+  document.querySelectorAll('[data-ph-en]').forEach(el => {
+    el.setAttribute('placeholder', lang === 'en' ? el.getAttribute('data-ph-en') : el.getAttribute('data-ph-hi'));
+  });
+  const hiBtn = document.getElementById('langBtnHi'), enBtn = document.getElementById('langBtnEn');
+  if (hiBtn && enBtn) { hiBtn.classList.toggle('active', lang === 'hi'); enBtn.classList.toggle('active', lang === 'en'); }
+
+  // Re-render whatever's currently on screen so JS-generated text picks up the new language.
+  renderPsOverlay();
+  updateSyncBadge();
+  renderSyncError(store.get('sc_last_sync_error', null));
+  renderGoatSavedOverlay();
+  if (document.getElementById('quickCalcOverlay').style.display === 'flex') recalcQuickCalc();
+  const activeScreen = document.querySelector('.screen.active');
+  if (!activeScreen) return;
+  if (activeScreen.id === 'screen-camps') renderHome();
+  if (activeScreen.id === 'screen-campdetail') renderCampDetail();
+  if (activeScreen.id === 'screen-householddetail') renderHouseholdDetail();
+  if (activeScreen.id === 'screen-newgoat') { recalcAddGoat(); renderGoatProgress(); }
+  if (activeScreen.id === 'screen-calc') recalcCalc();
+  if (activeScreen.id === 'screen-settings') renderSettings();
+}
+
+/* ═══════════════════════ STATE / STORAGE ═══════════════════════ */
+let ps = store.get('sc_ps', null);
+let psListCache = store.get('sc_ps_list_cache', []);
+let camps = store.get('sc_camps', []);
+let households = store.get('sc_households', []);
+let goats = store.get('sc_goats', []);
+let pending = store.get('sc_pending', []);
+let rateCache = store.get('sc_rate_cache', {});
+let regionsCache = store.get('sc_regions_cache', []);
+
+let sex = null, response = null;
+let currentCampId = null, currentHouseholdId = null;
+let calcSex = null;
+let capturedPhotos = {}; // { 1: Blob, 2: Blob, 3: Blob } for the goat form currently open
+let aiSuggestedQuality = null;
+
+/* ═══════════════════════ INSTALL / OFFLINE (service worker) ═══════════════════════
+   Caches the app shell (this page, pricing.js, the vendored Supabase library,
+   icons) so the app opens with zero internet after it's been installed once. */
+if ('serviceWorker' in navigator) {
+  window.addEventListener('load', () => navigator.serviceWorker.register('service-worker.js'));
+}
+
+/* ═══════════════════════ INIT ═══════════════════════ */
+window.onload = async () => {
+  await refreshPsList();
+  await refreshRegions();
+  populateRegionSelects();
+  renderPsOverlay();
+  // If a PS is already selected on this phone, re-sync her weight_mode/
+  // region/phone from the freshly-fetched ps_list in case an admin changed
+  // them in Supabase — otherwise these stay frozen at whatever they were
+  // when she first tapped her name, so an admin's change (e.g. switching her
+  // weight_mode) never reaches an already-signed-in phone.
+  if (ps) {
+    const fresh = psListCache.find(p => p.name === ps.name);
+    if (fresh) { ps = { name: fresh.name, phone: fresh.phone, region: fresh.region, weight_mode: fresh.weight_mode || 'scale' }; store.set('sc_ps', ps); }
+    document.getElementById('psOverlay').classList.add('hidden');
+    document.getElementById('headerPsLine').textContent = '👤 ' + ps.name + ' · ' + ps.region;
+  }
+  updateSyncBadge();
+  renderSyncError(store.get('sc_last_sync_error', null));
+  renderHome();
+  applyLang();
+  window.addEventListener('online', () => flushQueue());
+  flushQueue();
+  if (ps) await refreshCloudData();
+};
+
+// Pulls this PS's camps/households/goats down from Supabase so data entered
+// on one phone (or the laptop) shows up on another device signed in as the
+// same PS. Any record not yet synced from THIS device (still pending) is
+// kept alongside the cloud copy rather than overwritten, so an offline
+// entry never gets lost.
+async function refreshCloudData() {
+  if (!sb || !ps) return;
+  try {
+    const cutoff = new Date(); cutoff.setDate(cutoff.getDate() - HISTORY_DAYS);
+    const cutoffStr = cutoff.toISOString().slice(0, 10);
+    const { data: cloudCamps, error: campErr } = await sb.from('camps').select('*').eq('ps_name', ps.name).gte('camp_date', cutoffStr);
+    if (campErr || !cloudCamps) return;
+    const cloudCampIds = new Set(cloudCamps.map(c => c.id));
+    camps = [...cloudCamps, ...camps.filter(c => !cloudCampIds.has(c.id))];
+    store.set('sc_camps', camps);
+
+    const campIds = camps.map(c => c.id);
+    if (!campIds.length) { renderHome(); return; }
+
+    const { data: cloudHh } = await sb.from('households').select('*').in('camp_id', campIds);
+    if (cloudHh) {
+      const cloudHhIds = new Set(cloudHh.map(h => h.id));
+      households = [...cloudHh, ...households.filter(h => !cloudHhIds.has(h.id))];
+      store.set('sc_households', households);
+    }
+
+    const { data: cloudGoats } = await sb.from('goats').select('*').in('camp_id', campIds);
+    if (cloudGoats) {
+      const cloudGoatIds = new Set(cloudGoats.map(g => g.id));
+      goats = [...cloudGoats, ...goats.filter(g => !cloudGoatIds.has(g.id))];
+      store.set('sc_goats', goats);
+    }
+
+    const activeScreen = document.querySelector('.screen.active');
+    if (activeScreen && activeScreen.id === 'screen-camps') renderHome();
+    if (activeScreen && activeScreen.id === 'screen-campdetail') renderCampDetail();
+    if (activeScreen && activeScreen.id === 'screen-householddetail') renderHouseholdDetail();
+  } catch (e) {}
+}
+
+/* ═══════════════════════ PS SELECTION ═══════════════════════ */
+async function refreshPsList() {
+  if (sb) {
+    try {
+      const { data, error } = await sb.from('ps_list').select('name, phone, region, weight_mode').eq('active', true);
+      if (!error && data && data.length) { psListCache = data; store.set('sc_ps_list_cache', psListCache); }
+    } catch (e) { /* offline — use cache */ }
+  }
+}
+
+function renderPsOverlay() {
+  const icons = ['🌸','🌻','🌼','🌺','🌷','🍀'];
+  const el = document.getElementById('psOptions');
+  if (!psListCache.length) { el.innerHTML = '<div style="color:white; font-size:13px;">' + L('No PS list found - connect to the internet', 'कोई PS सूची नहीं मिली - इंटरनेट से जुड़ें') + '</div>'; return; }
+  el.innerHTML = psListCache.map((p, i) => `
+    <button class="ps-option" onclick='selectPS(${JSON.stringify(p)})'>
+      <span class="ps-icon">${icons[i % icons.length]}</span>
+      <span>${p.name}</span>
+    </button>`).join('');
+}
+
+async function selectPS(p) {
+  ps = { name: p.name, phone: p.phone, region: p.region, weight_mode: p.weight_mode };
+  store.set('sc_ps', ps);
+  document.getElementById('psOverlay').classList.add('hidden');
+  document.getElementById('headerPsLine').textContent = '👤 ' + ps.name + ' · ' + ps.region;
+  document.getElementById('newRegion').value = ps.region;
+  renderHome();
+  await refreshCloudData();
+}
+
+function changePSUser() {
+  if (!confirm(L('Do you want to change PS?','क्या आप PS बदलना चाहते हैं?'))) return;
+  ps = null; store.set('sc_ps', null);
+  document.getElementById('psOverlay').classList.remove('hidden');
+  renderPsOverlay();
+}
+
+/* ═══════════════════════ SCREEN NAV ═══════════════════════ */
+function showScreen(name) {
+  document.querySelectorAll('.screen').forEach(s => s.classList.remove('active'));
+  document.getElementById('screen-' + name).classList.add('active');
+  document.querySelectorAll('.tab').forEach(t => t.classList.toggle('active', t.dataset.tab === name || (name!=='camps' && name!=='calc' && t.dataset.tab==='camps')));
+  if (name === 'camps') { renderHome(); refreshCloudData(); }
+  if (name === 'newcamp') { document.getElementById('newCampDate').value = new Date().toISOString().slice(0,10); document.getElementById('newRegion').value = ps ? ps.region : ''; }
+  if (name === 'campdetail') renderCampDetail();
+  if (name === 'householddetail') renderHouseholdDetail();
+  if (name === 'newgoat') prepAddGoat();
+  if (name === 'settings') renderSettings();
+}
+
+function renderSettings() {
+  document.getElementById('aiProxyStatus').textContent = (CLAUDE_PROXY_URL && !CLAUDE_PROXY_URL.startsWith('PASTE_'))
+    ? L("This is set up centrally — you don't need to do anything.",'यह केंद्रीय रूप से सेट है — आपको कुछ नहीं करना है।')
+    : L("AI quality suggestion is currently off (admin hasn't set up the proxy).",'AI क्वालिटी सुझाव अभी बंद है (admin ने प्रॉक्सी सेट नहीं की)।');
+  const lastAiErr = store.get('sc_last_ai_error', null);
+  const aiErrEl = document.getElementById('aiLastError');
+  aiErrEl.textContent = lastAiErr
+    ? L('Last AI error (','पिछली AI त्रुटि (')+new Date(lastAiErr.at).toLocaleString(lang==='en'?'en-IN':'hi-IN')+'): '+lastAiErr.detail
+    : '';
+  document.getElementById('settingsPsName').textContent = ps ? ps.name : '—';
+  const p = pending.length;
+  document.getElementById('settingsPendingCount').textContent = p ? (p+' '+L('records pending sync','रिकॉर्ड sync बाकी')) : L('All synced','सब sync हो गया');
+  const failedRow = document.getElementById('settingsFailedRow');
+  if (failed.length) { failedRow.style.display = 'flex'; document.getElementById('settingsFailedCount').textContent = failed.length+' '+L('could not sync — tap Retry','sync नहीं हो पाए — फिर कोशिश करें दबाएं'); }
+  else failedRow.style.display = 'none';
+}
+
+async function clearAllData() {
+  if (!confirm(L('⚠️ All local data will be erased. Are you sure?','⚠️ सभी local data मिट जाएगा। क्या आप सुनिश्चित हैं?'))) return;
+  if (!confirm(L('Confirm again — this cannot be undone.','दोबारा पुष्टि करें — यह पूर्ववत नहीं होगा।'))) return;
+  ['sc_ps','sc_camps','sc_households','sc_goats','sc_pending','sc_rate_cache','sc_last_sync_error','sc_ps_list_cache','sc_regions_cache','sc_last_ai_error','sc_failed'].forEach(k=>localStorage.removeItem(k));
+  try {
+    const db = await openPhotoDb();
+    await new Promise((resolve,reject) => {
+      const tx = db.transaction(PHOTO_STORE_NAME,'readwrite');
+      tx.objectStore(PHOTO_STORE_NAME).clear();
+      tx.oncomplete = resolve; tx.onerror = () => reject(tx.error);
+    });
+  } catch (e) {}
+  try {
+    if ('caches' in window) { const keys = await caches.keys(); await Promise.all(keys.map(k => caches.delete(k))); }
+    if ('serviceWorker' in navigator) { const regs = await navigator.serviceWorker.getRegistrations(); await Promise.all(regs.map(r => r.unregister())); }
+  } catch (e) {}
+  location.reload();
+}
+
+/* ═══════════════════════ REGIONS + RATE CARD ═══════════════════════ */
+async function refreshRegions() {
+  if (sb) {
+    try {
+      const { data, error } = await sb.from('rate_cards').select('region');
+      if (!error && data) { const set = [...new Set(data.map(r => r.region))]; if (set.length) { regionsCache = set; store.set('sc_regions_cache', regionsCache); } }
+    } catch (e) {}
+  }
+  if (!regionsCache.length) regionsCache = FALLBACK_REGIONS;
+}
+
+function populateRegionSelects() {
+  ['newRegion','cRegion'].forEach(id => {
+    const el = document.getElementById(id);
+    const current = el.value;
+    el.innerHTML = regionsCache.map(r => `<option value="${r}">${r}</option>`).join('');
+    if (current) el.value = current;
+  });
+}
+
+async function refreshRateCard(region) {
+  if (!sb) return rateCache[region] || null;
+  try {
+    const today = new Date().toISOString().slice(0,10);
+    const { data: cards, error } = await sb.from('rate_cards')
+      .select('id, version, buffer, effective_from, effective_to')
+      .eq('region', region).eq('is_active', true).lte('effective_from', today)
+      .order('effective_from', { ascending: false }).limit(5);
+    if (error || !cards || !cards.length) return rateCache[region] || null;
+    const valid = cards.find(c => !c.effective_to || c.effective_to >= today) || cards[0];
+    const { data: lines } = await sb.from('rate_card_lines').select('category, quality, rate_per_kg').eq('rate_card_id', valid.id);
+    const lineMap = {};
+    (lines || []).forEach(l => { lineMap[l.category + '|' + l.quality] = l.rate_per_kg; });
+    const combined = { version: valid.version, buffer: valid.buffer, lines: lineMap, fetched_at: new Date().toISOString() };
+    rateCache[region] = combined;
+    store.set('sc_rate_cache', rateCache);
+    return combined;
+  } catch (e) { return rateCache[region] || null; }
+}
+
+function computeQuote(region, sexVal, teethStr, weight, quality) {
+  return PricingLib.computeQuote(rateCache, region, sexVal, teethStr, weight, quality);
+}
+
+/* ═══════════════════════ CAMPS ═══════════════════════ */
+function myCampsInWindow() {
+  const cutoff = new Date(); cutoff.setDate(cutoff.getDate() - HISTORY_DAYS);
+  const cutoffStr = cutoff.toISOString().slice(0,10);
+  return camps.filter(c => c.ps_name === ps.name && c.camp_date >= cutoffStr).sort((a,b) => b.camp_date.localeCompare(a.camp_date));
+}
+
+function campStats(c) {
+  const hhs = households.filter(h => h.camp_id === c.id);
+  const gs = goats.filter(g => g.camp_id === c.id);
+  const interestedValue = gs.filter(g => g.hh_response === 'interested').reduce((s,g) => s + g.final_price, 0);
+  return { hhCount: hhs.length, goatCount: gs.length, interestedValue };
+}
+
+// The home screen's one job: get a PS straight back into today's camp with a
+// single tap, instead of making her find it in a history list every time.
+function renderHomeHero() {
+  const hero = document.getElementById('homeHero');
+  if (!ps) return;
+  const todayStr = new Date().toISOString().slice(0,10);
+  const todays = myCampsInWindow().filter(c => c.camp_date === todayStr);
+  if (!todays.length) {
+    hero.innerHTML = `
+      <div class="hero-card hero-empty">
+        <div class="hero-empty-icon">🏕️</div>
+        <div class="hero-empty-text">${L("No camp started today yet","आज तक कोई शिविर शुरू नहीं हुआ")}</div>
+        <button class="btn-primary" onclick="showScreen('newcamp')">➕ ${L('Start new camp','नया शिविर शुरू करें')}</button>
+      </div>`;
+    return;
+  }
+  hero.innerHTML = todays.map(c => {
+    const s = campStats(c);
+    return `
+      <div class="hero-card" onclick="openCamp('${c.id}')">
+        <div class="hero-label">${L("Today's camp","आज का शिविर")}</div>
+        <div class="hero-village">${c.village_name}</div>
+        <div class="hero-meta">${c.region} · ${c.camp_date}</div>
+        <div class="table-summary" style="margin-top:10px; margin-bottom:0;">
+          <div class="summary-item"><strong>${s.hhCount}</strong><span>${L('Homes','घर')}</span></div>
+          <div class="summary-item"><strong>${s.goatCount}</strong><span>${L('Animals','पशु')}</span></div>
+          <div class="summary-item"><strong>₹${fmtNum(s.interestedValue)}</strong><span>${L('Interested','इच्छुक')}</span></div>
+        </div>
+        <button class="btn-primary">${L('Continue camp →','शिविर जारी रखें →')}</button>
+      </div>`;
+  }).join('') + `<button class="btn-secondary" onclick="showScreen('newcamp')">➕ ${L('Start another camp','एक और शिविर शुरू करें')}</button>`;
+}
+
+// Everything NOT from today — collapsed by default so it doesn't compete with
+// "continue today's camp" for attention (the review's "one primary action").
+let historyExpanded = false;
+function toggleHistory() {
+  historyExpanded = !historyExpanded;
+  document.getElementById('campsList').style.display = historyExpanded ? 'block' : 'none';
+  updateHistoryToggleLabel();
+  if (historyExpanded) renderHistoryList();
+}
+function updateHistoryToggleLabel() {
+  document.getElementById('historyToggleLabel').textContent = (historyExpanded ? '▴ ' : '▾ ') + L('Other recent camps','अन्य हाल के शिविर');
+}
+
+function renderHistoryList() {
+  if (!ps) return;
+  const todayStr = new Date().toISOString().slice(0,10);
+  const list = myCampsInWindow().filter(c => c.camp_date !== todayStr);
+  const el = document.getElementById('campsList');
+  if (!list.length) { el.innerHTML = '<div class="empty-state">' + L('No other camps in the last 15 days', 'पिछले 15 दिनों में कोई अन्य शिविर नहीं') + '</div>'; return; }
+  el.innerHTML = list.map(c => {
+    const s = campStats(c);
+    const rc = rateCache[c.region];
+    return `<div class="list-card" onclick="openCamp('${c.id}')">
+      <div class="list-card-top">
+        <div class="list-card-name">${c.village_name}</div>
+        <span class="chip ${rc ? 'chip-ready' : 'chip-norate'}">${rc ? L('Rate ready','रेट तैयार') : L('No rate card','रेट कार्ड नहीं')}</span>
+      </div>
+      <div class="list-card-meta">${c.region} · ${c.camp_date}</div>
+      <div class="list-card-stats">
+        <div><div class="list-card-stat-label">${L('Homes','घर')}</div><div class="list-card-stat-value">${s.hhCount}</div></div>
+        <div><div class="list-card-stat-label">${L('Animals','पशु')}</div><div class="list-card-stat-value">${s.goatCount}</div></div>
+      </div>
+    </div>`;
+  }).join('');
+}
+
+function renderHome() {
+  renderHomeHero();
+  updateHistoryToggleLabel();
+  if (historyExpanded) renderHistoryList();
+}
+
+function openCamp(id) { currentCampId = id; showScreen('campdetail'); }
+
+async function createCamp() {
+  const village = document.getElementById('newVillage').value.trim();
+  const region = document.getElementById('newRegion').value;
+  const date = document.getElementById('newCampDate').value;
+  if (!village || !region || !date) { showToast(L('⚠️ Fill in all details','⚠️ सभी जानकारी भरें'), false); return; }
+  const camp = {
+    id: crypto.randomUUID(), village_name: village, region, camp_date: date,
+    ps_name: ps.name, ps_phone: ps.phone || null, weight_mode: ps.weight_mode
+  };
+  camps.push(camp);
+  store.set('sc_camps', camps);
+  queueWrite('insert', 'camps', camp);
+  await refreshRateCard(region);
+  currentCampId = camp.id;
+  showScreen('campdetail');
+}
+
+function renderCampDetail() {
+  const c = camps.find(x => x.id === currentCampId);
+  if (!c) { showScreen('camps'); return; }
+  document.getElementById('cdVillage').textContent = c.village_name;
+  document.getElementById('cdMeta').textContent = c.region + ' · ' + c.camp_date + ' · ' + weightModeLabel(c.weight_mode);
+  const rc = rateCache[c.region];
+  const statusEl = document.getElementById('cdRateStatus');
+  if (rc) { statusEl.className = 'rate-status ok'; statusEl.textContent = '✓ ' + L('Rate card v','रेट कार्ड v') + rc.version + ' ' + L('ready','तैयार'); }
+  else { statusEl.className = 'rate-status bad'; statusEl.textContent = L('⚠️ No rate card available for this region','⚠️ इस क्षेत्र के लिए रेट कार्ड उपलब्ध नहीं है'); refreshRateCard(c.region).then(renderCampDetail); }
+
+  const hhs = households.filter(h => h.camp_id === c.id);
+  const gs = goats.filter(g => g.camp_id === c.id);
+  const interestedValue = gs.filter(g => g.hh_response === 'interested').reduce((s,g) => s + g.final_price, 0);
+  document.getElementById('cdHhCount').textContent = hhs.length;
+  document.getElementById('cdGoatCount').textContent = gs.length;
+  document.getElementById('cdInterestedValue').textContent = '₹' + fmtNum(interestedValue);
+
+  const el = document.getElementById('hhList');
+  if (!hhs.length) { el.innerHTML = '<div class="empty-state">' + L('No households added yet','अभी कोई घर नहीं जोड़ा गया') + '</div>'; return; }
+  el.innerHTML = hhs.map(h => {
+    const hGoats = goats.filter(g => g.household_id === h.id);
+    const hValue = hGoats.filter(g => g.hh_response === 'interested').reduce((s,g) => s + g.final_price, 0);
+    const expected = h.expected_goat_count ? (hGoats.length + ' / ' + h.expected_goat_count) : String(hGoats.length);
+    return `<div class="list-card" onclick="openHousehold('${h.id}')">
+      <div class="list-card-top"><div class="list-card-name">${h.hh_name}</div></div>
+      <div class="list-card-meta">${h.mobile || L('No mobile number','मोबाइल नहीं')}</div>
+      <div class="list-card-stats">
+        <div><div class="list-card-stat-label">${L('Animals added','पशु जोड़े गए')}</div><div class="list-card-stat-value">${expected}</div></div>
+        <div><div class="list-card-stat-label">${L('Interested value','इच्छुक मूल्य')}</div><div class="list-card-stat-value">₹${fmtNum(hValue)}</div></div>
+      </div>
+    </div>`;
+  }).join('');
+}
+
+function weightModeLabel(m) { return { scale: L('Scale','तराजू'), '2dim': L('2-point tape','2-माप टेप'), '5dim': L('5-point tape','5-माप टेप'), both: L('Scale + tape (lower)','तराजू + टेप (न्यूनतम)') }[m] || m; }
+
+/* ═══════════════════════ HOUSEHOLDS ═══════════════════════ */
+function createHousehold() {
+  const hh_name = document.getElementById('hhName').value.trim();
+  if (!hh_name) { showToast(L('⚠️ Enter the household name','⚠️ घर का नाम भरें'), false); return; }
+  const mobileRaw = document.getElementById('hhMobile').value.trim();
+  if (mobileRaw && !/^\d{10}$/.test(mobileRaw)) { showToast(L('⚠️ Mobile number must be exactly 10 digits','⚠️ मोबाइल नंबर ठीक 10 अंकों का होना चाहिए'), false); return; }
+  const mobile = mobileRaw || null;
+  const expected = parseInt(document.getElementById('hhExpected').value) || null;
+  if (!expected || expected < 1) { showToast(L('⚠️ Enter how many goats to sell','⚠️ कितनी बकरियां बेचनी हैं भरें'), false); return; }
+  const hh = { id: crypto.randomUUID(), camp_id: currentCampId, hh_name, mobile, expected_goat_count: expected };
+  households.push(hh);
+  store.set('sc_households', households);
+  queueWrite('insert', 'households', hh);
+  document.getElementById('hhName').value = ''; document.getElementById('hhMobile').value = ''; document.getElementById('hhExpected').value = '';
+  currentHouseholdId = hh.id;
+  showScreen('householddetail');
+}
+
+function openHousehold(id) { currentHouseholdId = id; showScreen('householddetail'); }
+
+function renderHouseholdDetail() {
+  const h = households.find(x => x.id === currentHouseholdId);
+  if (!h) { showScreen('campdetail'); return; }
+  document.getElementById('hdName').textContent = h.hh_name;
+  document.getElementById('hdMeta').textContent = h.mobile || L('No mobile number','मोबाइल नहीं');
+  const hGoats = goats.filter(g => g.household_id === h.id);
+  const value = hGoats.filter(g => g.hh_response === 'interested').reduce((s,g) => s + g.final_price, 0);
+  document.getElementById('hdGoatCount').textContent = hGoats.length + (h.expected_goat_count ? (' / ' + h.expected_goat_count) : '');
+  document.getElementById('hdInterestedValue').textContent = '₹' + fmtNum(value);
+
+  const labels = {
+    young_male_small: L('Young male (small)','नर छोटा'),
+    young_male_regular: L('Young male (regular)','नर सामान्य'),
+    young_male_body: L('Young male (large)','नर बड़ा'),
+    old_female: L('Old female','पुरानी मादा')
+  };
+  const el = document.getElementById('goatList');
+  if (!hGoats.length) { el.innerHTML = '<div class="empty-state">' + L('No animals added yet','अभी कोई पशु नहीं जोड़ा गया') + '</div>'; return; }
+  el.innerHTML = hGoats.slice().reverse().map(g => `
+    <div class="goat-row">
+      <div class="goat-row-top">
+        <div class="goat-thumb">${(g.photos_taken > 0) ? '📷' : '🐐'}</div>
+        <div class="goat-info">
+          <div class="gname">${labels[g.category]||g.category} · ${g.weight_kg} kg</div>
+          <div class="gmeta">${g.quality} ${L('quality','क्वालिटी')} · ₹${fmtNum(g.final_price)}</div>
+        </div>
+      </div>
+      <div class="resp-row">
+        <button class="resp-btn resp-interested ${g.hh_response==='interested'?'sel':''}" onclick="setGoatResponse('${g.id}','interested')">✅ ${L('Interested','इच्छुक')}</button>
+        <button class="resp-btn resp-awaited ${g.hh_response==='awaited'?'sel':''}" onclick="setGoatResponse('${g.id}','awaited')">⏳ ${L('Awaited','सोच रहे')}</button>
+        <button class="resp-btn resp-not_interested ${g.hh_response==='not_interested'?'sel':''}" onclick="setGoatResponse('${g.id}','not_interested')">❌ ${L('Not interested','अनिच्छुक')}</button>
+      </div>
+    </div>`).join('');
+}
+
+function setGoatResponse(id, resp) {
+  const g = goats.find(x => x.id === id);
+  if (!g) return;
+  g.hh_response = resp; g.updated_at = new Date().toISOString();
+  store.set('sc_goats', goats);
+  const stillPending = pending.find(p => p.table === 'goats' && p.data.id === id && p.op === 'insert');
+  if (stillPending) { stillPending.data.hh_response = resp; stillPending.data.updated_at = g.updated_at; store.set('sc_pending', pending); }
+  else queueWrite('update', 'goats', { id, hh_response: resp, updated_at: g.updated_at });
+  renderHouseholdDetail();
+}
+
+/* ═══════════════════════ ADD GOAT ═══════════════════════ */
+function prepAddGoat() {
+  const c = camps.find(x => x.id === currentCampId);
+  const h = households.find(x => x.id === currentHouseholdId);
+  if (!c || !h) { showScreen('camps'); return; }
+  document.getElementById('ngHhLine').textContent = h.hh_name + ' · ' + c.village_name;
+
+  sex = null; response = null;
+  document.getElementById('btnMale').className = 'toggle-btn';
+  document.getElementById('btnFemale').className = 'toggle-btn';
+  document.getElementById('respInterested').className = 'toggle-btn';
+  document.getElementById('respAwaited').className = 'toggle-btn';
+  document.getElementById('respNotInterested').className = 'toggle-btn';
+  document.getElementById('gTeeth').value = '';
+  document.getElementById('gQuality').value = '';
+  document.getElementById('gWeightScale').value = '';
+  document.getElementById('gHg').value = ''; document.getElementById('gBl').value = '';
+  document.getElementById('gHg5').value = ''; document.getElementById('gBl5').value = '';
+  document.getElementById('gHt5').value = ''; document.getElementById('gRw5').value = ''; document.getElementById('gPg5').value = '';
+  [1,2,3].forEach(i => {
+    const preview = document.getElementById('photoPreview'+i);
+    if (preview.getAttribute('data-photo')) URL.revokeObjectURL(preview.src); // release the previous form's photo memory
+    preview.style.display = 'none';
+    document.getElementById('photoPlaceholder'+i).style.display = 'block';
+    preview.removeAttribute('data-photo');
+  });
+  capturedPhotos = {};
+  aiSuggestedQuality = null;
+  document.getElementById('aiQualityRow').classList.add('hidden');
+  document.getElementById('gResult').classList.remove('show');
+  document.getElementById('gWarning').classList.remove('show');
+  document.getElementById('gNoRate').classList.remove('show');
+  document.getElementById('btnSaveGoat').disabled = true;
+
+  document.getElementById('scaleFields').style.display = (c.weight_mode === 'scale' || c.weight_mode === 'both') ? 'block' : 'none';
+  document.getElementById('tapeFields2').style.display = (c.weight_mode === '2dim' || c.weight_mode === 'both') ? 'block' : 'none';
+  document.getElementById('tapeFields5').style.display = c.weight_mode === '5dim' ? 'block' : 'none';
+  // In 'both' mode the effective (lower of scale/tape) weight replaces the
+  // plain tape-only readout, so the two aren't shown confusingly side by side.
+  document.getElementById('tapeOut2Wrap').style.display = c.weight_mode === 'both' ? 'none' : 'block';
+  document.getElementById('effWeightRow').style.display = 'none';
+
+  renderGoatProgress();
+  if (!rateCache[c.region]) refreshRateCard(c.region);
+}
+
+// "Goat 3 of ~4" — so a PS always knows where she is in this household
+// without backing out to the household list to check.
+function renderGoatProgress() {
+  const h = households.find(x => x.id === currentHouseholdId);
+  const el = document.getElementById('ngProgress');
+  if (!h || !el) return;
+  const nextNum = goats.filter(g => g.household_id === h.id).length + 1;
+  el.textContent = h.expected_goat_count
+    ? L(`Goat ${nextNum} of ~${h.expected_goat_count}`, `पशु ${nextNum} / ~${h.expected_goat_count}`)
+    : L(`Goat ${nextNum} for this household`, `इस घर के लिए पशु ${nextNum}`);
+}
+
+function setSex(v) { sex = v; document.getElementById('btnMale').className = 'toggle-btn' + (v==='male'?' sel':''); document.getElementById('btnFemale').className = 'toggle-btn' + (v==='female'?' sel-female':''); recalcAddGoat(); }
+function setResponse(v) {
+  response = v;
+  document.getElementById('respInterested').className = 'toggle-btn' + (v==='interested'?' sel':'');
+  document.getElementById('respAwaited').className = 'toggle-btn' + (v==='awaited'?' sel-amber':'');
+  document.getElementById('respNotInterested').className = 'toggle-btn' + (v==='not_interested'?' sel-red':'');
+  recalcAddGoat();
+}
+
+// 'both' mode: scale and tape are both taken, and the LOWER of the two is
+// used as a safeguard against an inflated tape estimate — matches sale-camp-v2.
+function computeEffectiveWeight(scaleW, hg, bl) {
+  const sw = parseFloat(scaleW) || null;
+  const fw = PricingLib.estimateWeightFromTape(parseFloat(hg) || 0, parseFloat(bl) || 0) || null;
+  if (sw && fw) return { weight: Math.min(sw, fw), scale: sw, formula: fw, method: 'min' };
+  if (sw) return { weight: sw, scale: sw, formula: null, method: 'scale' };
+  if (fw) return { weight: fw, scale: null, formula: fw, method: 'formula' };
+  return null;
+}
+
+function renderEffWeight(eff) {
+  const row = document.getElementById('effWeightRow');
+  if (!eff) { row.style.display = 'none'; return; }
+  row.style.display = 'flex';
+  document.getElementById('effWeightVal').textContent = eff.weight.toFixed(1) + ' kg';
+  const breakdown = document.getElementById('effWeightBreakdown');
+  if (eff.method === 'min') breakdown.textContent = L('Scale: ','तराजू: ')+eff.scale.toFixed(1)+'kg | '+L('Tape: ','टेप: ')+eff.formula.toFixed(1)+'kg → '+L('lower taken','न्यूनतम लिया गया');
+  else if (eff.method === 'scale') breakdown.textContent = L('from scale only (no tape reading yet)','सिर्फ तराजू से (अभी टेप रीडिंग नहीं)');
+  else breakdown.textContent = L('from tape only (no scale reading yet)','सिर्फ टेप से (अभी तराजू रीडिंग नहीं)');
+}
+
+function currentWeight() {
+  const c = camps.find(x => x.id === currentCampId);
+  if (!c) return null;
+  if (c.weight_mode === 'scale') return parseFloat(document.getElementById('gWeightScale').value) || null;
+  if (c.weight_mode === '2dim') {
+    const hg = parseFloat(document.getElementById('gHg').value) || 0;
+    const bl = parseFloat(document.getElementById('gBl').value) || 0;
+    const w = PricingLib.estimateWeightFromTape(hg, bl);
+    document.getElementById('gWeightTapeOut2').value = w ? w.toFixed(1) + ' kg' : '-- kg';
+    return w;
+  }
+  if (c.weight_mode === 'both') {
+    const eff = computeEffectiveWeight(document.getElementById('gWeightScale').value, document.getElementById('gHg').value, document.getElementById('gBl').value);
+    renderEffWeight(eff);
+    return eff ? eff.weight : null;
+  }
+  // 5dim: price still comes from heart girth + body length (see pricing.js) —
+  // height/rump/paunch are captured and stored but don't change the number yet.
+  const hg = parseFloat(document.getElementById('gHg5').value) || 0;
+  const bl = parseFloat(document.getElementById('gBl5').value) || 0;
+  const w = PricingLib.estimateWeightFromTape(hg, bl);
+  document.getElementById('gWeightTapeOut5').value = w ? w.toFixed(1) + ' kg' : '-- kg';
+  return w;
+}
+
+function recalcAddGoat() {
+  const c = camps.find(x => x.id === currentCampId);
+  const weight = currentWeight();
+  const teeth = document.getElementById('gTeeth').value;
+  const quality = document.getElementById('gQuality').value;
+  const warn = document.getElementById('gWarning'), noRate = document.getElementById('gNoRate'), result = document.getElementById('gResult');
+  warn.classList.remove('show'); noRate.classList.remove('show'); result.classList.remove('show');
+  document.getElementById('btnSaveGoat').disabled = true;
+  if (!sex || !teeth || !quality || !weight || !c) return;
+  const quote = computeQuote(c.region, sex, teeth, weight, quality);
+  if (!quote.eligible) { warn.classList.add('show'); return; }
+  if (quote.noRateCard) { noRate.classList.add('show'); return; }
+  document.getElementById('gCat').textContent = categoryLabel(quote.category.key);
+  document.getElementById('gRate').textContent = '₹' + quote.rate;
+  document.getElementById('gFinal').textContent = '₹' + fmtNum(quote.finalPrice);
+  result.classList.add('show');
+  if (response) document.getElementById('btnSaveGoat').disabled = false;
+}
+
+/* ═══════════════════════ PHOTO CAPTURE, COMPRESSION + LOCAL STORAGE ═══════════════════════
+   A phone camera photo is typically several MB. We shrink it to at most
+   PHOTO_MAX_DIMENSION px on the long side and re-encode as JPEG at
+   PHOTO_JPEG_QUALITY before it ever touches the sync queue or mobile data —
+   this is what keeps "1 goat = 3 photos" from eating a PS's data plan.
+   Compressed photos are kept in IndexedDB (not localStorage, which caps out
+   around 5-10MB and would overflow after a day of photos) until they've
+   uploaded to Supabase Storage, then deleted from the phone. */
+const PHOTO_MAX_DIMENSION = 1024;
+const PHOTO_JPEG_QUALITY = 0.6;
+const PHOTO_DB_NAME = 'sc_photos_db';
+const PHOTO_STORE_NAME = 'pending_photos';
+
+function loadImageFromFile(file) {
+  return new Promise((resolve, reject) => {
+    const url = URL.createObjectURL(file);
+    const img = new Image();
+    img.onload = () => { URL.revokeObjectURL(url); resolve(img); };
+    img.onerror = (e) => { URL.revokeObjectURL(url); reject(e); };
+    img.src = url;
+  });
+}
+
+async function compressPhoto(file) {
+  const img = await loadImageFromFile(file);
+  let { width, height } = img;
+  if (width > PHOTO_MAX_DIMENSION || height > PHOTO_MAX_DIMENSION) {
+    const scale = PHOTO_MAX_DIMENSION / Math.max(width, height);
+    width = Math.round(width * scale);
+    height = Math.round(height * scale);
+  }
+  const canvas = document.createElement('canvas');
+  canvas.width = width; canvas.height = height;
+  canvas.getContext('2d').drawImage(img, 0, 0, width, height);
+  return new Promise((resolve) => canvas.toBlob(resolve, 'image/jpeg', PHOTO_JPEG_QUALITY));
+}
+
+function openPhotoDb() {
+  return new Promise((resolve, reject) => {
+    const req = indexedDB.open(PHOTO_DB_NAME, 1);
+    req.onupgradeneeded = () => req.result.createObjectStore(PHOTO_STORE_NAME);
+    req.onsuccess = () => resolve(req.result);
+    req.onerror = () => reject(req.error);
+  });
+}
+
+async function savePendingPhotos(goatId, photos) {
+  const db = await openPhotoDb();
+  return new Promise((resolve, reject) => {
+    const tx = db.transaction(PHOTO_STORE_NAME, 'readwrite');
+    tx.objectStore(PHOTO_STORE_NAME).put(photos, goatId);
+    tx.oncomplete = resolve;
+    tx.onerror = () => reject(tx.error);
+  });
+}
+
+async function loadPendingPhotos(goatId) {
+  const db = await openPhotoDb();
+  return new Promise((resolve, reject) => {
+    const req = db.transaction(PHOTO_STORE_NAME, 'readonly').objectStore(PHOTO_STORE_NAME).get(goatId);
+    req.onsuccess = () => resolve(req.result || null);
+    req.onerror = () => reject(req.error);
+  });
+}
+
+async function deletePendingPhotos(goatId) {
+  const db = await openPhotoDb();
+  return new Promise((resolve, reject) => {
+    const tx = db.transaction(PHOTO_STORE_NAME, 'readwrite');
+    tx.objectStore(PHOTO_STORE_NAME).delete(goatId);
+    tx.oncomplete = resolve;
+    tx.onerror = () => reject(tx.error);
+  });
+}
+
+async function onPhotoSelected(e, idx) {
+  const file = e.target.files[0];
+  if (!file) return;
+  const preview = document.getElementById('photoPreview'+idx);
+  const placeholder = document.getElementById('photoPlaceholder'+idx);
+  placeholder.textContent = L('Processing…', 'प्रोसेस हो रहा है…');
+  try {
+    const compressed = await compressPhoto(file);
+    capturedPhotos[idx] = compressed;
+    if (preview.getAttribute('data-photo')) URL.revokeObjectURL(preview.src);
+    preview.src = URL.createObjectURL(compressed);
+    preview.style.display = 'block';
+    preview.setAttribute('data-photo', '1');
+    placeholder.style.display = 'none';
+    // AI quality check runs once — only after all 3 angles are captured
+    if (capturedPhotos[1] && capturedPhotos[2] && capturedPhotos[3]) {
+      await analyzePhotoWithClaude();
+    }
+  } catch (err) {
+    console.error('Photo compression failed', err);
+    showToast(L('⚠️ Could not process that photo — try again', '⚠️ फोटो प्रोसेस नहीं हो सकी - फिर कोशिश करें'), false);
+    placeholder.innerHTML = '📷<div class="hint" data-en="Photo '+idx+'" data-hi="फोटो '+idx+'">फोटो '+idx+'</div>';
+  }
+}
+
+function blobToBase64(blob) {
+  return new Promise((resolve, reject) => {
+    const reader = new FileReader();
+    reader.onload = () => resolve(reader.result);
+    reader.onerror = reject;
+    reader.readAsDataURL(blob);
+  });
+}
+
+/* ═══════════════════════ CLAUDE AI (via secure proxy — see claude_proxy_appsscript.gs) ═══════════════════════
+   Any failure here is shown on-screen (not just console.error) and saved to
+   sc_last_ai_error so it's visible later in Settings too — PS phones are the
+   only place this ever runs, and there's no DevTools console to check there. */
+function recordAiError(detail) {
+  store.set('sc_last_ai_error', { detail, at: new Date().toISOString() });
+}
+
+async function analyzePhotoWithClaude() {
+  if (!CLAUDE_PROXY_URL || CLAUDE_PROXY_URL.startsWith('PASTE_')) return; // AI suggestion off until admin sets this up
+
+  const row = document.getElementById('aiQualityRow');
+  const label = document.getElementById('aiQualityLabel');
+  row.classList.remove('hidden');
+  label.innerHTML = '<span class="spinner"></span> ' + L('AI analyzing...', 'AI विश्लेषण हो रहा है...');
+
+  try {
+    const [front, side, back] = await Promise.all([1,2,3].map(i => blobToBase64(capturedPhotos[i])));
+    const resp = await fetch(CLAUDE_PROXY_URL, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ images: [front, side, back] })
+    });
+
+    if (!resp.ok) {
+      const bodyText = await resp.text().catch(() => '');
+      recordAiError('HTTP ' + resp.status + ' from proxy' + (bodyText ? (': ' + bodyText.slice(0,200)) : ''));
+      label.textContent = L('⚠️ AI check failed (see Settings for details)', '⚠️ AI जांच विफल (विवरण के लिए Settings देखें)');
+      return;
+    }
+    const result = await resp.json();
+    if (result.error) {
+      recordAiError(String(result.error));
+      label.textContent = L('⚠️ AI check failed (see Settings for details)', '⚠️ AI जांच विफल (विवरण के लिए Settings देखें)');
+      return;
+    }
+    const q = result.quality || null;
+
+    if (q) {
+      aiSuggestedQuality = q;
+      const qLabels = {'1st':L('First (1st)','पहली (1st)'),'2nd':L('Second (2nd)','दूसरी (2nd)'),'3rd':L('Third (3rd)','तीसरी (3rd)')};
+      label.textContent = L('AI suggestion: ','AI सुझाव: ') + qLabels[q];
+      if (!document.getElementById('gQuality').value) {
+        document.getElementById('gQuality').value = q;
+        recalcAddGoat();
+      }
+    } else {
+      recordAiError('Proxy responded but no quality could be read from Claude\'s reply');
+      label.textContent = L('⚠️ AI could not judge quality this time (see Settings)', '⚠️ इस बार AI क्वालिटी तय नहीं कर पाया (Settings देखें)');
+    }
+  } catch (err) {
+    recordAiError('Network/JS error: ' + (err && err.message ? err.message : String(err)));
+    label.textContent = L('⚠️ AI check failed (see Settings for details)', '⚠️ AI जांच विफल (विवरण के लिए Settings देखें)');
+  }
+}
+
+function acceptAIQuality() {
+  if (aiSuggestedQuality) {
+    document.getElementById('gQuality').value = aiSuggestedQuality;
+    recalcAddGoat();
+    document.getElementById('aiQualityRow').classList.add('hidden');
+    showToast(L('✓ AI quality accepted','✓ AI क्वालिटी स्वीकार की गई'), true);
+  }
+}
+
+async function saveGoat() {
+  const c = camps.find(x => x.id === currentCampId);
+  const h = households.find(x => x.id === currentHouseholdId);
+  if (!c || !h || !response) { showToast(L('⚠️ Select the household response','⚠️ घर की प्रतिक्रिया चुनें'), false); return; }
+  const teeth = document.getElementById('gTeeth').value;
+  const quality = document.getElementById('gQuality').value;
+  const weight = currentWeight();
+  const quote = computeQuote(c.region, sex, teeth, weight, quality);
+  if (!quote.eligible || quote.noRateCard) { showToast(L('⚠️ Please fill in all details correctly first','⚠️ पहले पूरी जानकारी सही भरें'), false); return; }
+  document.getElementById('btnSaveGoat').disabled = true; // guard against a double tap while photos save
+  const photosTaken = Object.keys(capturedPhotos).length;
+  const isTapeMode = c.weight_mode === '2dim' || c.weight_mode === '5dim' || c.weight_mode === 'both';
+  const eff = c.weight_mode === 'both' ? computeEffectiveWeight(document.getElementById('gWeightScale').value, document.getElementById('gHg').value, document.getElementById('gBl').value) : null;
+  const row = {
+    id: crypto.randomUUID(), household_id: h.id, camp_id: c.id,
+    sex, teeth, quality, weight_kg: weight, weight_method: c.weight_mode,
+    weight_source: eff ? eff.method : null,
+    weight_scale_kg: eff ? eff.scale : (c.weight_mode==='scale' ? weight : null),
+    weight_formula_kg: eff ? eff.formula : (isTapeMode && c.weight_mode!=='both' ? weight : null),
+    heart_girth: c.weight_mode==='2dim'||c.weight_mode==='both' ? (parseFloat(document.getElementById('gHg').value)||null) : c.weight_mode==='5dim' ? (parseFloat(document.getElementById('gHg5').value)||null) : null,
+    body_length: c.weight_mode==='2dim'||c.weight_mode==='both' ? (parseFloat(document.getElementById('gBl').value)||null) : c.weight_mode==='5dim' ? (parseFloat(document.getElementById('gBl5').value)||null) : null,
+    height_cm: c.weight_mode==='5dim' ? (parseFloat(document.getElementById('gHt5').value)||null) : null,
+    rump_width: c.weight_mode==='5dim' ? (parseFloat(document.getElementById('gRw5').value)||null) : null,
+    paunch_girth: c.weight_mode==='5dim' ? (parseFloat(document.getElementById('gPg5').value)||null) : null,
+    ai_quality_suggested: aiSuggestedQuality || null,
+    category: quote.category.key, rate_per_kg: quote.rate, buffer: quote.buffer, final_price: quote.finalPrice,
+    hh_response: response, photos_taken: photosTaken, ps_name: ps.name,
+    created_at: new Date().toISOString(), updated_at: new Date().toISOString()
+  };
+  if (photosTaken > 0) {
+    try { await savePendingPhotos(row.id, capturedPhotos); }
+    catch (err) {
+      console.error('Could not store photos locally', err);
+      showToast(L('⚠️ Could not save photos - animal not saved, try again','⚠️ फोटो सहेजी नहीं जा सकी - पशु सहेजा नहीं गया, फिर कोशिश करें'), false);
+      document.getElementById('btnSaveGoat').disabled = false;
+      return;
+    }
+  }
+  goats.push(row);
+  store.set('sc_goats', goats);
+  queueWrite('insert', 'goats', row);
+  showGoatSavedOverlay(quote);
+}
+
+// Shown after every save instead of silently jumping back to the household
+// list — lets a PS add the next goat in one tap without leaving the flow.
+let lastSavedQuote = null;
+function showGoatSavedOverlay(quote) {
+  lastSavedQuote = quote;
+  renderGoatSavedOverlay();
+  document.getElementById('goatSavedOverlay').style.display = 'flex';
+}
+function renderGoatSavedOverlay() {
+  if (!lastSavedQuote) return;
+  document.getElementById('goatSavedTitle').textContent = '₹' + fmtNum(lastSavedQuote.finalPrice);
+  document.getElementById('goatSavedSub').textContent = categoryLabel(lastSavedQuote.category.key);
+}
+function continueAddingGoats() {
+  document.getElementById('goatSavedOverlay').style.display = 'none';
+  prepAddGoat();
+}
+function finishHouseholdGoats() {
+  document.getElementById('goatSavedOverlay').style.display = 'none';
+  showScreen('householddetail');
+}
+
+/* ═══════════════════════ QUICK PRICE CHECK (doesn't touch the goat draft) ═══════════════════════
+   Opens as a modal over the New Animal screen instead of navigating to the
+   Calculator tab — navigating away would reset the in-progress goat form
+   (prepAddGoat() clears every field, including captured photos, on entry). */
+let quickCalcSex = null;
+
+function openQuickCalc() {
+  const c = camps.find(x => x.id === currentCampId);
+  if (!c) return;
+  quickCalcSex = null;
+  document.getElementById('qcBtnMale').className = 'toggle-btn';
+  document.getElementById('qcBtnFemale').className = 'toggle-btn';
+  document.getElementById('qcTeeth').value = '';
+  document.getElementById('qcQuality').value = '';
+  document.getElementById('qcWeight').value = '';
+  document.getElementById('qcWarning').classList.remove('show');
+  document.getElementById('qcResult').classList.remove('show');
+  document.getElementById('quickCalcOverlay').style.display = 'flex';
+  if (!rateCache[c.region]) refreshRateCard(c.region);
+}
+
+function closeQuickCalc() {
+  document.getElementById('quickCalcOverlay').style.display = 'none';
+}
+
+function setQuickCalcSex(v) {
+  quickCalcSex = v;
+  document.getElementById('qcBtnMale').className = 'toggle-btn' + (v==='male'?' sel':'');
+  document.getElementById('qcBtnFemale').className = 'toggle-btn' + (v==='female'?' sel-female':'');
+  recalcQuickCalc();
+}
+
+function recalcQuickCalc() {
+  const c = camps.find(x => x.id === currentCampId);
+  const teeth = document.getElementById('qcTeeth').value;
+  const quality = document.getElementById('qcQuality').value;
+  const weight = parseFloat(document.getElementById('qcWeight').value);
+  const warn = document.getElementById('qcWarning'), result = document.getElementById('qcResult');
+  warn.classList.remove('show'); result.classList.remove('show');
+  if (!c || !quickCalcSex || !teeth || !quality || !weight) return;
+  const quote = computeQuote(c.region, quickCalcSex, teeth, weight, quality);
+  if (!quote.eligible || quote.noRateCard) { warn.classList.add('show'); return; }
+  document.getElementById('qcCat').textContent = categoryLabel(quote.category.key);
+  document.getElementById('qcFinal').textContent = '₹' + fmtNum(quote.finalPrice);
+  result.classList.add('show');
+}
+
+/* ═══════════════════════ CALCULATOR ═══════════════════════ */
+function setCalcSex(v) { calcSex = v; document.getElementById('cBtnMale').className='toggle-btn'+(v==='male'?' sel':''); document.getElementById('cBtnFemale').className='toggle-btn'+(v==='female'?' sel-female':''); recalcCalc(); }
+
+async function recalcCalc() {
+  const region = document.getElementById('cRegion').value;
+  const teeth = document.getElementById('cTeeth').value;
+  const quality = document.getElementById('cQuality').value;
+  const weight = parseFloat(document.getElementById('cWeight').value);
+  const warn = document.getElementById('cWarning'), result = document.getElementById('cResult');
+  warn.classList.remove('show'); result.classList.remove('show');
+  if (!region || !calcSex || !teeth || !quality || !weight) return;
+  if (!rateCache[region]) await refreshRateCard(region);
+  const quote = computeQuote(region, calcSex, teeth, weight, quality);
+  if (!quote.eligible) { warn.textContent = L('⚠️ This animal doesn\'t fall in our purchase category.','⚠️ यह पशु हमारी खरीद श्रेणी में नहीं आता।'); warn.classList.add('show'); return; }
+  if (quote.noRateCard) { warn.textContent = L('⚠️ No rate card is available for this region.','⚠️ इस क्षेत्र के लिए रेट कार्ड उपलब्ध नहीं है।'); warn.classList.add('show'); return; }
+  document.getElementById('cCat').textContent = categoryLabel(quote.category.key);
+  document.getElementById('cRate').textContent = '₹' + quote.rate;
+  document.getElementById('cFinal').textContent = '₹' + fmtNum(quote.finalPrice);
+  result.classList.add('show');
+}
+
+/* ═══════════════════════ OFFLINE QUEUE / SYNC ═══════════════════════ */
+// A record that fails to sync used to be retried first, forever — blocking
+// every later camp/household/goat behind it in the queue indefinitely. After
+// MAX_SYNC_ATTEMPTS failed tries, a record is now moved out of the way into
+// sc_failed (never deleted — see Settings > Data to retry it) so everything
+// queued after it can still sync.
+const MAX_SYNC_ATTEMPTS = 5;
+let failed = store.get('sc_failed', []);
+
+function queueWrite(op, table, data) {
+  pending.push({ op, table, data, attempts: 0 });
+  store.set('sc_pending', pending);
+  updateSyncBadge();
+  flushQueue();
+}
+
+function retryFailed() {
+  if (!failed.length) return;
+  failed.forEach(item => { pending.push({ op: item.op, table: item.table, data: item.data, attempts: 0 }); });
+  failed = []; store.set('sc_failed', failed); store.set('sc_pending', pending);
+  updateSyncBadge(); renderSettings(); flushQueue(true);
+}
+
+const PHOTO_BUCKET = 'goat-photos';
+
+// Uploads a goat's compressed photos (if any are still waiting locally) and
+// stamps their URLs onto the row before it's inserted. Runs as part of the
+// same try/catch as the row insert, so a photo upload failure leaves the
+// whole goat pending and retries everything together next sync — never a
+// half-synced record with photos but no row, or a row with missing photos.
+async function uploadGoatPhotosIfNeeded(row) {
+  if (!row.photos_taken) return;
+  const photos = await loadPendingPhotos(row.id);
+  if (!photos) return; // already uploaded in a previous attempt
+  for (const idx of Object.keys(photos)) {
+    const path = `${row.camp_id}/${row.id}/${idx}.jpg`;
+    const { error } = await sb.storage.from(PHOTO_BUCKET).upload(path, photos[idx], { contentType: 'image/jpeg', upsert: true });
+    if (error) throw error;
+    const { data } = sb.storage.from(PHOTO_BUCKET).getPublicUrl(path);
+    row['photo_url_' + idx] = data.publicUrl;
+  }
+}
+
+async function flushQueue(manual) {
+  if (!sb) { updateSyncBadge(); if (manual) showToast(L('⚠️ Supabase connection is not set up','⚠️ Supabase कनेक्शन सेट नहीं है'), false); return; }
+  let lastError = null;
+  while (pending.length) {
+    const item = pending[0];
+    try {
+      if (item.op === 'insert' && item.table === 'goats') await uploadGoatPhotosIfNeeded(item.data);
+      let res;
+      if (item.op === 'insert') res = await sb.from(item.table).insert(item.data);
+      else res = await sb.from(item.table).update(item.data).eq('id', item.data.id);
+      if (res.error) throw res.error;
+      if (item.op === 'insert' && item.table === 'goats' && item.data.photos_taken) await deletePendingPhotos(item.data.id);
+      pending.shift();
+      store.set('sc_pending', pending);
+      lastError = null;
+    } catch (e) {
+      lastError = { message: (e && e.message) ? e.message : String(e), table: item.table, at: new Date().toISOString() };
+      console.error('Sync failed for', item.table, item.op, e);
+      item.attempts = (item.attempts || 0) + 1;
+      if (item.attempts >= MAX_SYNC_ATTEMPTS) {
+        failed.push({ ...item, lastError }); store.set('sc_failed', failed);
+        pending.shift(); store.set('sc_pending', pending);
+        continue; // move on to whatever's queued behind it — its photos (if any) stay in IndexedDB for a manual retry
+      }
+      store.set('sc_pending', pending);
+      break;
+    }
+  }
+  store.set('sc_last_sync_error', lastError);
+  renderSyncError(lastError);
+  updateSyncBadge();
+  if (manual && !pending.length && !lastError && !failed.length) showToast(L('✓ Synced','✓ सिंक हो गया'), true);
+  if (manual && lastError) showToast(L('⚠️ Sync failed - see details below','⚠️ सिंक विफल - नीचे विवरण देखें'), false);
+}
+
+function renderSyncError(err) {
+  const bar = document.getElementById('syncErrorBar');
+  if (failed.length) { bar.style.display = 'block'; bar.textContent = '⚠️ ' + failed.length + ' ' + L('record(s) could not sync after repeated tries — see Settings > Data','रिकॉर्ड बार-बार कोशिश के बाद भी sync नहीं हुए — Settings > डेटा देखें'); }
+  else if (err) { bar.style.display = 'block'; bar.textContent = '⚠️ ' + L('Sync failed','सिंक विफल') + ' (' + err.table + '): ' + err.message + ' — ' + new Date(err.at).toLocaleTimeString(lang==='en'?'en-IN':'hi-IN'); }
+  else bar.style.display = 'none';
+}
+
+function updateSyncBadge() {
+  const badge = document.getElementById('syncBadge');
+  if (pending.length) { badge.className = 'sync-badge sync-pending'; badge.textContent = '⏳ ' + pending.length + ' ' + L('pending sync','सिंक बाकी'); }
+  else { badge.className = 'sync-badge sync-ok'; badge.textContent = '✓ ' + L('Synced','सिंक हो गया'); }
+}
+
+/* ═══════════════════════ TOAST ═══════════════════════ */
+function showToast(msg, ok=true) {
+  const t = document.getElementById('toast');
+  t.textContent = msg;
+  t.style.background = ok ? 'var(--green-dark)' : 'var(--amber)';
+  t.classList.add('show');
+  setTimeout(() => t.classList.remove('show'), 2600);
+}
+</script>
+</body>
+</html>
