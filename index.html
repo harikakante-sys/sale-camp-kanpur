@@ -345,15 +345,13 @@
         <div class="field"><label class="req" data-en="Heart girth (cm)" data-hi="हार्ट गर्थ (cm)">हार्ट गर्थ (cm)</label><input type="number" id="gHg" oninput="recalcAddGoat()"></div>
         <div class="field"><label class="req" data-en="Body length (cm)" data-hi="बॉडी लेंथ (cm)">बॉडी लेंथ (cm)</label><input type="number" id="gBl" oninput="recalcAddGoat()"></div>
       </div>
-      <div class="field" id="tapeOut2Wrap"><label data-en="Estimated weight" data-hi="अनुमानित वजन">अनुमानित वजन</label><input type="text" id="gWeightTapeOut2" readonly style="background:#F8F8F8;" value="-- kg"></div>
-      <div class="eff-weight-row" id="effWeightRow" style="display:none;">
-        <div>
-          <div class="eff-weight-label" data-en="Effective weight (lower)" data-hi="प्रभावी वजन (न्यूनतम)">प्रभावी वजन (न्यूनतम)</div>
-          <div class="eff-weight-breakdown" id="effWeightBreakdown">—</div>
-        </div>
-        <div class="eff-weight-value" id="effWeightVal">— kg</div>
-      </div>
+      <div class="field"><label data-en="Estimated weight" data-hi="अनुमानित वजन">अनुमानित वजन</label><input type="text" id="gWeightTapeOut2" readonly style="background:#F8F8F8;" value="-- kg"></div>
     </div>
+    <!-- Used by both '5dim' (tape measurements only) and 'both' (scale + all
+         5 measurements together) — 'both' used to pair the scale with just
+         heart girth + body length (tapeFields2 above); it now pairs the
+         scale with the full 5-measurement set instead, so every 'both'-mode
+         camp captures the same richer data 5dim already does. -->
     <div id="tapeFields5" style="display:none;">
       <div class="row2">
         <div class="field"><label class="req" data-en="Heart girth (cm)" data-hi="हार्ट गर्थ (cm)">हार्ट गर्थ (cm)</label><input type="number" id="gHg5" oninput="recalcAddGoat()"></div>
@@ -364,7 +362,14 @@
         <div class="field"><label data-en="Rump width" data-hi="रम्प चौड़ाई">रम्प चौड़ाई</label><input type="number" id="gRw5"></div>
         <div class="field"><label data-en="Paunch girth" data-hi="पौंच गर्थ">पौंच गर्थ</label><input type="number" id="gPg5"></div>
       </div>
-      <div class="field"><label data-en="Estimated weight" data-hi="अनुमानित वजन">अनुमानित वजन</label><input type="text" id="gWeightTapeOut5" readonly style="background:#F8F8F8;" value="-- kg"></div>
+      <div class="field" id="tapeOut5Wrap"><label data-en="Estimated weight" data-hi="अनुमानित वजन">अनुमानित वजन</label><input type="text" id="gWeightTapeOut5" readonly style="background:#F8F8F8;" value="-- kg"></div>
+      <div class="eff-weight-row" id="effWeightRow" style="display:none;">
+        <div>
+          <div class="eff-weight-label" data-en="Effective weight (lower)" data-hi="प्रभावी वजन (न्यूनतम)">प्रभावी वजन (न्यूनतम)</div>
+          <div class="eff-weight-breakdown" id="effWeightBreakdown">—</div>
+        </div>
+        <div class="eff-weight-value" id="effWeightVal">— kg</div>
+      </div>
     </div>
   </div>
 
@@ -975,7 +980,7 @@ function renderCampDetail() {
   }).join('');
 }
 
-function weightModeLabel(m) { return { scale: L('Scale','तराजू'), '2dim': L('2-point tape','2-माप टेप'), '5dim': L('5-point tape','5-माप टेप'), both: L('Scale + tape (lower)','तराजू + टेप (न्यूनतम)') }[m] || m; }
+function weightModeLabel(m) { return { scale: L('Scale','तराजू'), '2dim': L('2-point tape','2-माप टेप'), '5dim': L('5-point tape','5-माप टेप'), both: L('Scale + 5 measurements (lower)','तराजू + 5 माप (न्यूनतम)') }[m] || m; }
 
 /* ═══════════════════════ HOUSEHOLDS ═══════════════════════ */
 function createHousehold() {
@@ -1078,11 +1083,11 @@ function prepAddGoat() {
   document.getElementById('btnSaveGoat').disabled = true;
 
   document.getElementById('scaleFields').style.display = (c.weight_mode === 'scale' || c.weight_mode === 'both') ? 'block' : 'none';
-  document.getElementById('tapeFields2').style.display = (c.weight_mode === '2dim' || c.weight_mode === 'both') ? 'block' : 'none';
-  document.getElementById('tapeFields5').style.display = c.weight_mode === '5dim' ? 'block' : 'none';
+  document.getElementById('tapeFields2').style.display = (c.weight_mode === '2dim') ? 'block' : 'none';
+  document.getElementById('tapeFields5').style.display = (c.weight_mode === '5dim' || c.weight_mode === 'both') ? 'block' : 'none';
   // In 'both' mode the effective (lower of scale/tape) weight replaces the
   // plain tape-only readout, so the two aren't shown confusingly side by side.
-  document.getElementById('tapeOut2Wrap').style.display = c.weight_mode === 'both' ? 'none' : 'block';
+  document.getElementById('tapeOut5Wrap').style.display = c.weight_mode === 'both' ? 'none' : 'block';
   document.getElementById('effWeightRow').style.display = 'none';
 
   renderGoatProgress();
@@ -1144,7 +1149,7 @@ function currentWeight() {
     return w;
   }
   if (c.weight_mode === 'both') {
-    const eff = computeEffectiveWeight(document.getElementById('gWeightScale').value, document.getElementById('gHg').value, document.getElementById('gBl').value);
+    const eff = computeEffectiveWeight(document.getElementById('gWeightScale').value, document.getElementById('gHg5').value, document.getElementById('gBl5').value);
     renderEffWeight(eff);
     return eff ? eff.weight : null;
   }
@@ -1382,19 +1387,23 @@ async function saveGoat() {
   if (!quote.eligible || quote.noRateCard) { showToast(L('⚠️ Please fill in all details correctly first','⚠️ पहले पूरी जानकारी सही भरें'), false); return; }
   document.getElementById('btnSaveGoat').disabled = true; // guard against a double tap while photos save
   const photosTaken = Object.keys(capturedPhotos).length;
-  const isTapeMode = c.weight_mode === '2dim' || c.weight_mode === '5dim' || c.weight_mode === 'both';
-  const eff = c.weight_mode === 'both' ? computeEffectiveWeight(document.getElementById('gWeightScale').value, document.getElementById('gHg').value, document.getElementById('gBl').value) : null;
+  // 'both' now shares the same 5-measurement fields as '5dim' (it used to
+  // pair the scale with just heart girth + body length) — every 'both'-mode
+  // camp captures the full 5-measurement set, same richness as pure 5dim,
+  // with the scale reading additionally used for the lower-of-two safeguard.
+  const usesFiveDimFields = c.weight_mode === '5dim' || c.weight_mode === 'both';
+  const eff = c.weight_mode === 'both' ? computeEffectiveWeight(document.getElementById('gWeightScale').value, document.getElementById('gHg5').value, document.getElementById('gBl5').value) : null;
   const row = {
     id: crypto.randomUUID(), household_id: h.id, camp_id: c.id,
     sex, teeth, quality, weight_kg: weight, weight_method: c.weight_mode,
     weight_source: eff ? eff.method : null,
     weight_scale_kg: eff ? eff.scale : (c.weight_mode==='scale' ? weight : null),
-    weight_formula_kg: eff ? eff.formula : (isTapeMode && c.weight_mode!=='both' ? weight : null),
-    heart_girth: c.weight_mode==='2dim'||c.weight_mode==='both' ? (parseFloat(document.getElementById('gHg').value)||null) : c.weight_mode==='5dim' ? (parseFloat(document.getElementById('gHg5').value)||null) : null,
-    body_length: c.weight_mode==='2dim'||c.weight_mode==='both' ? (parseFloat(document.getElementById('gBl').value)||null) : c.weight_mode==='5dim' ? (parseFloat(document.getElementById('gBl5').value)||null) : null,
-    height_cm: c.weight_mode==='5dim' ? (parseFloat(document.getElementById('gHt5').value)||null) : null,
-    rump_width: c.weight_mode==='5dim' ? (parseFloat(document.getElementById('gRw5').value)||null) : null,
-    paunch_girth: c.weight_mode==='5dim' ? (parseFloat(document.getElementById('gPg5').value)||null) : null,
+    weight_formula_kg: eff ? eff.formula : ((c.weight_mode==='2dim'||c.weight_mode==='5dim') ? weight : null),
+    heart_girth: c.weight_mode==='2dim' ? (parseFloat(document.getElementById('gHg').value)||null) : usesFiveDimFields ? (parseFloat(document.getElementById('gHg5').value)||null) : null,
+    body_length: c.weight_mode==='2dim' ? (parseFloat(document.getElementById('gBl').value)||null) : usesFiveDimFields ? (parseFloat(document.getElementById('gBl5').value)||null) : null,
+    height_cm: usesFiveDimFields ? (parseFloat(document.getElementById('gHt5').value)||null) : null,
+    rump_width: usesFiveDimFields ? (parseFloat(document.getElementById('gRw5').value)||null) : null,
+    paunch_girth: usesFiveDimFields ? (parseFloat(document.getElementById('gPg5').value)||null) : null,
     ai_quality_suggested: aiSuggestedQuality || null,
     category: quote.category.key, rate_per_kg: quote.rate, buffer: quote.buffer, final_price: quote.finalPrice,
     hh_response: response, photos_taken: photosTaken, ps_name: ps.name,
