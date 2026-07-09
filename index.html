@@ -389,6 +389,7 @@
       <span class="ai-quality-label" id="aiQualityLabel">—</span>
       <button class="ai-accept-btn" onclick="acceptAIQuality()" data-en="Use this" data-hi="इसे उपयोग करें">इसे उपयोग करें</button>
     </div>
+    <div class="locked-note hidden" id="aiPhotoIssueNote" style="margin-top:8px;">—</div>
   </div>
 
   <div class="card">
@@ -603,6 +604,17 @@
 
 <div class="success-toast" id="toast"></div>
 
+<!-- ══ OVERLAY: PHOTO QUALITY WARNING ══ -->
+<div class="modal-overlay" id="photoQualityOverlay" style="display:none;">
+  <div class="modal-card">
+    <div class="modal-icon">📷</div>
+    <div class="modal-title" data-en="Check this photo" data-hi="इस फोटो को जांचें">इस फोटो को जांचें</div>
+    <div class="modal-sub" id="photoQualityMsg">—</div>
+    <button class="btn-primary" onclick="retakePhoto()">🔄 <span data-en="Retake" data-hi="फिर लें">फिर लें</span></button>
+    <button class="btn-secondary" onclick="useAnywayPhoto()">✓ <span data-en="Use anyway" data-hi="वैसे ही उपयोग करें">वैसे ही उपयोग करें</span></button>
+  </div>
+</div>
+
 <!-- ══ OVERLAY: GOAT SAVED (choose to add another or go back) ══ -->
 <div class="modal-overlay" id="goatSavedOverlay" style="display:none;">
   <div class="modal-card">
@@ -706,7 +718,7 @@ const CATEGORY_LABELS = {
   young_male_small:   { hi: 'नर - छोटा (<17 kg)', en: 'Young male - small (<17 kg)' },
   young_male_regular: { hi: 'नर - सामान्य (17-26 kg)', en: 'Young male - regular (17-26 kg)' },
   young_male_body:    { hi: 'नर - बड़ा (>26 kg)', en: 'Young male - large (>26 kg)' },
-  old_female:         { hi: 'पुरानी मादा (6-8 दांत)', en: 'Old female (6-8 teeth)' }
+  old_female:         { hi: 'पुरानी मादा (4-8 दांत)', en: 'Old female (4-8 teeth)' }
 };
 function categoryLabel(key) { return (CATEGORY_LABELS[key] && CATEGORY_LABELS[key][lang]) || key; }
 function fmtNum(n) { return n.toLocaleString(lang === 'en' ? 'en-IN' : 'hi-IN'); }
@@ -1542,6 +1554,7 @@ function prepAddGoat() {
   aiSuggestedQuality = null;
   document.getElementById('aiQualityRow').classList.add('hidden');
   document.getElementById('aiQualityNote').classList.add('hidden');
+  document.getElementById('aiPhotoIssueNote').classList.add('hidden');
   document.getElementById('gResult').classList.remove('show');
   document.getElementById('gWarning').classList.remove('show');
   document.getElementById('gNoRate').classList.remove('show');
@@ -1663,6 +1676,14 @@ const PHOTO_JPEG_QUALITY = 0.6;
 const PHOTO_DB_NAME = 'sc_photos_db';
 const PHOTO_STORE_NAME = 'pending_photos';
 
+// Thresholds for the on-device blur/darkness check below — a reasonable
+// starting point, not precisely calibrated against real field photos yet.
+// If the team sees too many false "blurry"/"dark" flags on genuinely fine
+// photos in the first real camps, these numbers are what to adjust.
+const BLUR_VARIANCE_THRESHOLD = 40;      // Laplacian variance below this = likely blurry
+const DARK_BRIGHTNESS_THRESHOLD = 45;    // 0-255 average brightness below this = likely too dark
+const BRIGHT_BRIGHTNESS_THRESHOLD = 235; // above this = likely washed out/overexposed
+
 function loadImageFromFile(file) {
   return new Promise((resolve, reject) => {
     const url = URL.createObjectURL(file);
@@ -1685,6 +1706,51 @@ async function compressPhoto(file) {
   canvas.width = width; canvas.height = height;
   canvas.getContext('2d').drawImage(img, 0, 0, width, height);
   return new Promise((resolve) => canvas.toBlob(resolve, 'image/jpeg', PHOTO_JPEG_QUALITY));
+}
+
+// Instant, free, fully-offline nudge against the two most common field
+// mistakes: a shaky/motion-blurred shot, and bad lighting (too dark, or a
+// finger/flash washing it out). Runs on a small downsampled copy so it feels
+// instant on a phone — the sharpness/brightness signal survives downsampling
+// fine, this doesn't need full resolution. This is a nudge, never a hard
+// block — a PS in genuinely bad light shouldn't be unable to finish a goat.
+async function assessPhotoQuality(blob) {
+  const img = await loadImageFromFile(blob);
+  const size = 200;
+  const canvas = document.createElement('canvas');
+  canvas.width = size; canvas.height = size;
+  const ctx = canvas.getContext('2d');
+  ctx.drawImage(img, 0, 0, size, size);
+  const { data } = ctx.getImageData(0, 0, size, size);
+
+  const gray = new Float32Array(size * size);
+  for (let i = 0; i < size * size; i++) {
+    gray[i] = 0.299*data[i*4] + 0.587*data[i*4+1] + 0.114*data[i*4+2];
+  }
+
+  let brightnessSum = 0;
+  for (let i = 0; i < gray.length; i++) brightnessSum += gray[i];
+  const avgBrightness = brightnessSum / gray.length;
+
+  // Laplacian variance: a standard, cheap sharpness signal — sharp edges
+  // produce large second-derivative spikes; blur smooths them away.
+  let sum = 0, sumSq = 0, count = 0;
+  for (let y = 1; y < size - 1; y++) {
+    for (let x = 1; x < size - 1; x++) {
+      const idx = y * size + x;
+      const lap = -4*gray[idx] + gray[idx-1] + gray[idx+1] + gray[idx-size] + gray[idx+size];
+      sum += lap; sumSq += lap*lap; count++;
+    }
+  }
+  const mean = sum / count;
+  const variance = sumSq / count - mean*mean;
+
+  return {
+    blurry: variance < BLUR_VARIANCE_THRESHOLD,
+    dark: avgBrightness < DARK_BRIGHTNESS_THRESHOLD,
+    tooLight: avgBrightness > BRIGHT_BRIGHTNESS_THRESHOLD,
+    variance, avgBrightness // kept on the result for future threshold tuning
+  };
 }
 
 function openPhotoDb() {
@@ -1744,29 +1810,69 @@ function resetPhotoPlaceholder(idx) {
   placeholder.style.display = 'block';
 }
 
+let pendingQualityCheck = null; // { idx, compressed } while the retake/use-anyway prompt is open
+
 async function onPhotoSelected(e, idx) {
   const file = e.target.files[0];
   if (!file) return;
-  const preview = document.getElementById('photoPreview'+idx);
   const placeholder = document.getElementById('photoPlaceholder'+idx);
   placeholder.textContent = L('Processing…', 'प्रोसेस हो रहा है…');
   try {
     const compressed = await compressPhoto(file);
-    capturedPhotos[idx] = compressed;
-    if (preview.getAttribute('data-photo')) URL.revokeObjectURL(preview.src);
-    preview.src = URL.createObjectURL(compressed);
-    preview.style.display = 'block';
-    preview.setAttribute('data-photo', '1');
-    placeholder.style.display = 'none';
-    // AI quality check runs once — only after all 3 angles are captured
-    if (capturedPhotos[1] && capturedPhotos[2] && capturedPhotos[3]) {
-      await analyzePhotoWithClaude();
+    const assessment = await assessPhotoQuality(compressed);
+    if (assessment.blurry || assessment.dark || assessment.tooLight) {
+      pendingQualityCheck = { idx, compressed };
+      showPhotoQualityWarning(idx, assessment);
+      return; // wait for the PS to choose Retake or Use anyway
     }
+    acceptPhoto(idx, compressed);
   } catch (err) {
     console.error('Photo compression failed', err);
     showToast(L('⚠️ Could not process that photo — try again', '⚠️ फोटो प्रोसेस नहीं हो सकी - फिर कोशिश करें'), false);
     resetPhotoPlaceholder(idx);
   }
+}
+
+function acceptPhoto(idx, compressed) {
+  const preview = document.getElementById('photoPreview'+idx);
+  const placeholder = document.getElementById('photoPlaceholder'+idx);
+  capturedPhotos[idx] = compressed;
+  if (preview.getAttribute('data-photo')) URL.revokeObjectURL(preview.src);
+  preview.src = URL.createObjectURL(compressed);
+  preview.style.display = 'block';
+  preview.setAttribute('data-photo', '1');
+  placeholder.style.display = 'none';
+  // AI quality check runs once — only after all 3 angles are captured
+  if (capturedPhotos[1] && capturedPhotos[2] && capturedPhotos[3]) {
+    analyzePhotoWithClaude();
+  }
+}
+
+function showPhotoQualityWarning(idx, assessment) {
+  const reasons = [];
+  if (assessment.blurry) reasons.push(L('looks blurry','धुंधली लग रही है'));
+  if (assessment.dark) reasons.push(L('looks too dark','बहुत अंधेरी लग रही है'));
+  if (assessment.tooLight) reasons.push(L('looks washed out','बहुत ज़्यादा उजली लग रही है'));
+  document.getElementById('photoQualityMsg').textContent =
+    L('Photo ','फोटो ') + idx + ' ' + reasons.join(L(' and ',' और ')) + L('. Retake for a clearer shot, or use it anyway.','। बेहतर फोटो के लिए फिर लें, या इसे वैसे ही उपयोग करें।');
+  document.getElementById('photoQualityOverlay').style.display = 'flex';
+}
+
+function retakePhoto() {
+  if (!pendingQualityCheck) return;
+  const idx = pendingQualityCheck.idx;
+  document.getElementById('photoQualityOverlay').style.display = 'none';
+  pendingQualityCheck = null;
+  resetPhotoPlaceholder(idx);
+  document.getElementById('photoInput'+idx).value = '';
+}
+
+function useAnywayPhoto() {
+  if (!pendingQualityCheck) return;
+  const { idx, compressed } = pendingQualityCheck;
+  document.getElementById('photoQualityOverlay').style.display = 'none';
+  pendingQualityCheck = null;
+  acceptPhoto(idx, compressed);
 }
 
 function blobToBase64(blob) {
@@ -1818,6 +1924,17 @@ async function analyzePhotoWithClaude() {
       return;
     }
     const q = result.quality || null;
+
+    // Bonus signal from the same call — the AI vision check already looked
+    // at all 3 photos to grade quality, so it can flag "photo unclear" at no
+    // extra cost. Purely informational, never blocks anything.
+    const issueNote = document.getElementById('aiPhotoIssueNote');
+    if (result.photo_issue) {
+      issueNote.textContent = '🔍 ' + L('AI noticed: ','AI ने देखा: ') + result.photo_issue;
+      issueNote.classList.remove('hidden');
+    } else {
+      issueNote.classList.add('hidden');
+    }
 
     if (q) {
       aiSuggestedQuality = q;
