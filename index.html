@@ -447,9 +447,9 @@
         <div class="field"><label class="req" data-en="Body length (cm)" data-hi="बॉडी लेंथ (cm)">बॉडी लेंथ (cm)</label><input type="number" id="gBl5" oninput="recalcAddGoat()"></div>
       </div>
       <div class="row3">
-        <div class="field"><label data-en="Height (cm)" data-hi="ऊंचाई (cm)">ऊंचाई (cm)</label><input type="number" id="gHt5"></div>
-        <div class="field"><label data-en="Rump width" data-hi="रम्प चौड़ाई">रम्प चौड़ाई</label><input type="number" id="gRw5"></div>
-        <div class="field"><label data-en="Paunch girth" data-hi="पौंच गर्थ">पौंच गर्थ</label><input type="number" id="gPg5"></div>
+        <div class="field"><label class="req" data-en="Height (cm)" data-hi="ऊंचाई (cm)">ऊंचाई (cm)</label><input type="number" id="gHt5" oninput="recalcAddGoat()"></div>
+        <div class="field"><label class="req" data-en="Rump width (cm)" data-hi="रम्प चौड़ाई (cm)">रम्प चौड़ाई (cm)</label><input type="number" id="gRw5" oninput="recalcAddGoat()"></div>
+        <div class="field"><label class="req" data-en="Paunch girth (cm)" data-hi="पौंच गर्थ (cm)">पौंच गर्थ (cm)</label><input type="number" id="gPg5" oninput="recalcAddGoat()"></div>
       </div>
       <div class="field" id="tapeOut5Wrap"><label data-en="Estimated weight" data-hi="अनुमानित वजन">अनुमानित वजन</label><input type="text" id="gWeightTapeOut5" readonly style="background:#F8F8F8;" value="-- kg"></div>
       <div class="eff-weight-row" id="effWeightRow" style="display:none;">
@@ -464,7 +464,7 @@
 
   <div class="warning-msg" id="gWarning" data-en="⚠️ This animal doesn't fall in our purchase category (only young males and old females)." data-hi="⚠️ यह पशु हमारी खरीद श्रेणी में नहीं आता (केवल युवा नर और पुरानी मादा)।">⚠️ यह पशु हमारी खरीद श्रेणी में नहीं आता (केवल युवा नर और पुरानी मादा)।</div>
   <div class="warning-msg" id="gNoRate" data-en="⚠️ No valid rate card is available for this region. Connect to the internet once and sync." data-hi="⚠️ इस क्षेत्र के लिए कोई मान्य रेट कार्ड उपलब्ध नहीं है। इंटरनेट से एक बार जुड़ें और सिंक करें।">⚠️ इस क्षेत्र के लिए कोई मान्य रेट कार्ड उपलब्ध नहीं है। इंटरनेट से एक बार जुड़ें और सिंक करें।</div>
-  <div class="warning-msg" id="gMissingWeight" data-en="⚠️ Weight, heart girth, and body length are all required." data-hi="⚠️ वजन, हार्ट गर्थ और बॉडी लेंथ — तीनों जरूरी हैं।">⚠️ वजन, हार्ट गर्थ और बॉडी लेंथ — तीनों जरूरी हैं।</div>
+  <div class="warning-msg" id="gMissingWeight" data-en="⚠️ Weight, heart girth, body length, height, rump width, and paunch girth are all required." data-hi="⚠️ वजन, हार्ट गर्थ, बॉडी लेंथ, ऊंचाई, रम्प चौड़ाई और पौंच गर्थ — सभी जरूरी हैं।">⚠️ वजन, हार्ट गर्थ, बॉडी लेंथ, ऊंचाई, रम्प चौड़ाई और पौंच गर्थ — सभी जरूरी हैं।</div>
 
   <div class="result-card" id="gResult">
     <div class="result-row"><span class="result-label" data-en="Category" data-hi="श्रेणी">श्रेणी</span><span class="result-value" id="gCat">—</span></div>
@@ -1224,7 +1224,13 @@ function renderHouseholdDetail() {
   if (!h) { showScreen('campdetail'); return; }
   document.getElementById('hdName').textContent = h.hh_name;
   document.getElementById('hdMeta').textContent = h.mobile || L('No mobile number','मोबाइल नहीं');
-  const hGoats = goats.filter(g => g.household_id === h.id);
+  // Sorted by actual creation time, not array order — array order isn't
+  // reliable once cloud-synced data merges in (Supabase returns rows in no
+  // guaranteed order), so this was previously the only thing standing
+  // between "looks right on this phone" and genuinely correct add-order.
+  const hGoats = goats.filter(g => g.household_id === h.id)
+    .slice()
+    .sort((a,b) => new Date(a.created_at || 0) - new Date(b.created_at || 0));
   const value = hGoats.filter(g => g.hh_response === 'interested').reduce((s,g) => s + g.final_price, 0);
   document.getElementById('hdGoatCount').textContent = hGoats.length + (h.expected_goat_count ? (' / ' + h.expected_goat_count) : '');
   document.getElementById('hdInterestedValue').textContent = '₹' + fmtNum(value);
@@ -1237,13 +1243,16 @@ function renderHouseholdDetail() {
   };
   const el = document.getElementById('goatList');
   if (!hGoats.length) { el.innerHTML = '<div class="empty-state">' + L('No animals added yet','अभी कोई पशु नहीं जोड़ा गया') + '</div>'; return; }
-  el.innerHTML = hGoats.slice().reverse().map(g => `
-    <div class="goat-row" onclick="openGoatDetail('${g.id}')">
+  // #1, #2... reflects true add-order regardless of which way the list is
+  // displayed; the time is shown too so it's never ambiguous which came first.
+  el.innerHTML = hGoats.map((g, i) => {
+    const timeLabel = g.created_at ? new Date(g.created_at).toLocaleTimeString(lang==='en'?'en-IN':'hi-IN', {hour:'2-digit', minute:'2-digit'}) : '';
+    return `<div class="goat-row" onclick="openGoatDetail('${g.id}')">
       <div class="goat-row-top">
         <div class="goat-thumb">${(g.photos_taken > 0) ? '📷' : '🐐'}</div>
         <div class="goat-info">
-          <div class="gname">${labels[g.category]||g.category} · ${g.weight_kg} kg</div>
-          <div class="gmeta">${g.quality} ${L('quality','क्वालिटी')} · ₹${fmtNum(g.final_price)}</div>
+          <div class="gname">#${i+1} · ${labels[g.category]||g.category} · ${Math.round(g.weight_kg)} kg</div>
+          <div class="gmeta">${g.quality} ${L('quality','क्वालिटी')} · ₹${fmtNum(g.final_price)}${timeLabel ? (' · '+timeLabel) : ''}</div>
         </div>
         <div style="font-size:18px; color:var(--grey-300);">›</div>
       </div>
@@ -1252,7 +1261,8 @@ function renderHouseholdDetail() {
         <button class="resp-btn resp-awaited ${g.hh_response==='awaited'?'sel':''}" onclick="setGoatResponse('${g.id}','awaited')">⏳ ${L('Awaited','सोच रहे')}</button>
         <button class="resp-btn resp-not_interested ${g.hh_response==='not_interested'?'sel':''}" onclick="setGoatResponse('${g.id}','not_interested')">❌ ${L('Not interested','अनिच्छुक')}</button>
       </div>
-    </div>`).join('');
+    </div>`;
+  }).reverse().join(''); // newest goat shown first, but #N numbering stays true chronological order
 }
 
 function setGoatResponse(id, resp) {
@@ -1307,7 +1317,7 @@ function renderGoatDetail() {
       <div><div style="font-size:11px;color:var(--grey-500);">${L('Sex','लिंग')}</div><div style="font-weight:600;">${g.sex==='male'?('🐐 '+L('Male','नर')):('🐑 '+L('Female','मादा'))}</div></div>
       <div><div style="font-size:11px;color:var(--grey-500);">${L('Teeth','दांत')}</div><div style="font-weight:600;">${g.teeth}</div></div>
       <div><div style="font-size:11px;color:var(--grey-500);">${L('Quality','क्वालिटी')}</div><div style="font-weight:600;">${g.quality}</div></div>
-      <div><div style="font-size:11px;color:var(--grey-500);">${L('Camp weight','शिविर वजन')}</div><div style="font-weight:600;">${g.weight_kg} kg</div></div>
+      <div><div style="font-size:11px;color:var(--grey-500);">${L('Camp weight','शिविर वजन')}</div><div style="font-weight:600;">${Math.round(g.weight_kg)} kg</div></div>
     </div>`;
   if (g.heart_girth || g.body_length) {
     infoHtml += `<div style="margin-top:10px;font-size:12px;color:var(--grey-500);">${L('Measurements','माप')}: HG=${g.heart_girth||'—'}cm BL=${g.body_length||'—'}cm Ht=${g.height_cm||'—'}cm Rump=${g.rump_width||'—'} Paunch=${g.paunch_girth||'—'}</div>`;
@@ -1326,7 +1336,7 @@ function renderGoatDetail() {
     const form = document.getElementById('wePickupForm');
     if (g.collection_weight_kg) {
       status.className = 'we-done'; status.textContent = '✓ ' + g.collection_weight_kg + ' kg';
-      form.innerHTML = `<div style="font-size:13px;color:var(--grey-700);"><strong>${g.collection_weight_kg} kg</strong> — ${g.collection_datetime?new Date(g.collection_datetime).toLocaleString(lang==='en'?'en-IN':'hi-IN'):L('time unknown','समय अज्ञात')}</div>
+      form.innerHTML = `<div style="font-size:13px;color:var(--grey-700);"><strong>${Math.round(g.collection_weight_kg)} kg</strong> — ${g.collection_datetime?new Date(g.collection_datetime).toLocaleString(lang==='en'?'en-IN':'hi-IN'):L('time unknown','समय अज्ञात')}</div>
         <button class="btn-secondary" style="margin-top:8px;" onclick="resetPickupForm()">✏️ ${L('Change','बदलें')}</button>`;
     } else {
       status.className = 'we-pending'; status.textContent = L('Not recorded','दर्ज नहीं');
@@ -1346,7 +1356,7 @@ function renderGoatDetail() {
     mandiForm.innerHTML = `<div class="locked-note">🔒 ${L('Admin only — unlock in Settings to record this.','केवल Admin — इसे दर्ज करने के लिए Settings में अनलॉक करें।')}</div>`;
   } else if (g.mandi_weight_kg) {
     mandiStatus.className = 'we-done'; mandiStatus.textContent = '✓ ' + g.mandi_weight_kg + ' kg';
-    mandiForm.innerHTML = `<div style="font-size:13px;color:var(--grey-700);"><strong>${g.mandi_weight_kg} kg</strong>${g.mandi_sale_price?(' · ₹'+fmtNum(g.mandi_sale_price)):''} — ${g.mandi_datetime?new Date(g.mandi_datetime).toLocaleString(lang==='en'?'en-IN':'hi-IN'):L('time unknown','समय अज्ञात')}</div>
+    mandiForm.innerHTML = `<div style="font-size:13px;color:var(--grey-700);"><strong>${Math.round(g.mandi_weight_kg)} kg</strong>${g.mandi_sale_price?(' · ₹'+fmtNum(g.mandi_sale_price)):''} — ${g.mandi_datetime?new Date(g.mandi_datetime).toLocaleString(lang==='en'?'en-IN':'hi-IN'):L('time unknown','समय अज्ञात')}</div>
       <button class="btn-secondary" style="margin-top:8px;" onclick="resetMandiForm()">✏️ ${L('Change','बदलें')}</button>`;
   } else {
     mandiStatus.className = 'we-pending'; mandiStatus.textContent = L('Not recorded','दर्ज नहीं');
@@ -1414,7 +1424,7 @@ function updateShrinkageDisplay() {
   if (from && to && from > 0) {
     banner.style.display = 'flex';
     document.getElementById('shrinkageLegLabel').textContent = legLabel;
-    document.getElementById('shrinkageVal').textContent = ((from - to) / from * 100).toFixed(1) + '%';
+    document.getElementById('shrinkageVal').textContent = Math.round((from - to) / from * 100) + '%';
   } else {
     banner.style.display = 'none';
   }
@@ -1561,12 +1571,12 @@ function prepAddGoat() {
   document.getElementById('gMissingWeight').classList.remove('show');
   document.getElementById('btnSaveGoat').disabled = true;
 
-  // Field-testing phase: every goat requires scale weight + heart girth +
-  // body length, always — regardless of the PS's assigned weight_mode. This
-  // is deliberate: the point of this phase is collecting enough real
-  // scale-vs-formula pairs to validate the weight formula and AI quality
-  // check, so every goat needs both, not whichever the PS's profile allows.
-  // Height/rump/paunch stay optional extra data collection, same as before.
+  // Field-testing phase: every goat requires scale weight + all 5 tape
+  // measurements (heart girth, body length, height, rump width, paunch
+  // girth), always — regardless of the PS's assigned weight_mode. Deliberate:
+  // the point of this phase is collecting enough real scale-vs-formula pairs
+  // to validate both weight formulas (F2 and F3) and the AI quality check,
+  // so every goat needs the full set, not whichever the PS's profile allows.
   document.getElementById('scaleFields').style.display = 'block';
   document.getElementById('tapeFields2').style.display = 'none';
   document.getElementById('tapeFields5').style.display = 'block';
@@ -1600,12 +1610,24 @@ function setResponse(v) {
 
 // 'both' mode: scale and tape are both taken, and the LOWER of the two is
 // used as a safeguard against an inflated tape estimate — matches sale-camp-v2.
-function computeEffectiveWeight(scaleW, hg, bl) {
+// F2 and F3 are both computed and compared — "formula weight" is whichever
+// of the two comes out lower, then that's compared against the scale
+// reading the same way as before (lower of the two taken as the safeguard).
+// F3 is deployed alongside F2, not replacing it, specifically so both can be
+// validated against real scale weight and each other.
+function computeEffectiveWeight(scaleW, hg, bl, ht, rw, pg) {
   const sw = parseFloat(scaleW) || null;
-  const fw = PricingLib.estimateWeightFromTape(parseFloat(hg) || 0, parseFloat(bl) || 0) || null;
-  if (sw && fw) return { weight: Math.min(sw, fw), scale: sw, formula: fw, method: 'min' };
-  if (sw) return { weight: sw, scale: sw, formula: null, method: 'scale' };
-  if (fw) return { weight: fw, scale: null, formula: fw, method: 'formula' };
+  const f2 = PricingLib.estimateWeightFromTape(parseFloat(hg) || 0, parseFloat(bl) || 0) || null;
+  const f3 = PricingLib.estimateWeightFromMeasurementsF3(parseFloat(hg) || 0, parseFloat(bl) || 0, parseFloat(pg) || 0, parseFloat(rw) || 0, parseFloat(ht) || 0) || null;
+
+  let formula = null, formulaSource = null;
+  if (f2 != null && f3 != null) { formula = Math.min(f2, f3); formulaSource = f2 <= f3 ? 'F2' : 'F3'; }
+  else if (f2 != null) { formula = f2; formulaSource = 'F2'; }
+  else if (f3 != null) { formula = f3; formulaSource = 'F3'; }
+
+  if (sw != null && formula != null) return { weight: Math.min(sw, formula), scale: sw, formula, formulaSource, f2, f3, method: 'min' };
+  if (sw != null) return { weight: sw, scale: sw, formula: null, formulaSource: null, f2, f3, method: 'scale' };
+  if (formula != null) return { weight: formula, scale: null, formula, formulaSource, f2, f3, method: 'formula' };
   return null;
 }
 
@@ -1613,19 +1635,24 @@ function renderEffWeight(eff) {
   const row = document.getElementById('effWeightRow');
   if (!eff) { row.style.display = 'none'; return; }
   row.style.display = 'flex';
-  document.getElementById('effWeightVal').textContent = eff.weight.toFixed(1) + ' kg';
+  document.getElementById('effWeightVal').textContent = Math.round(eff.weight) + ' kg';
   const breakdown = document.getElementById('effWeightBreakdown');
-  if (eff.method === 'min') breakdown.textContent = L('Scale: ','तराजू: ')+eff.scale.toFixed(1)+'kg | '+L('Tape: ','टेप: ')+eff.formula.toFixed(1)+'kg → '+L('lower taken','न्यूनतम लिया गया');
-  else if (eff.method === 'scale') breakdown.textContent = L('from scale only (no tape reading yet)','सिर्फ तराजू से (अभी टेप रीडिंग नहीं)');
-  else breakdown.textContent = L('from tape only (no scale reading yet)','सिर्फ टेप से (अभी तराजू रीडिंग नहीं)');
+  const parts = [];
+  if (eff.scale != null) parts.push(L('Scale: ','तराजू: ') + Math.round(eff.scale) + 'kg');
+  if (eff.f2 != null) parts.push('F2: ' + Math.round(eff.f2) + 'kg');
+  if (eff.f3 != null) parts.push('F3: ' + Math.round(eff.f3) + 'kg');
+  breakdown.textContent = parts.join(' | ') + (parts.length > 1 ? (' → ' + L('lower taken','न्यूनतम लिया गया')) : '');
 }
 
-// Field-testing phase: always scale + heart girth/body length together (the
+// Field-testing phase: always scale + all 5 tape measurements together (the
 // "both" behavior), regardless of camp.weight_mode — see prepAddGoat().
 function currentWeight() {
   const c = camps.find(x => x.id === currentCampId);
   if (!c) return null;
-  const eff = computeEffectiveWeight(document.getElementById('gWeightScale').value, document.getElementById('gHg5').value, document.getElementById('gBl5').value);
+  const eff = computeEffectiveWeight(
+    document.getElementById('gWeightScale').value, document.getElementById('gHg5').value, document.getElementById('gBl5').value,
+    document.getElementById('gHt5').value, document.getElementById('gRw5').value, document.getElementById('gPg5').value
+  );
   renderEffWeight(eff);
   return eff ? eff.weight : null;
 }
@@ -1639,7 +1666,10 @@ function allWeightFieldsFilled() {
   const scale = parseFloat(document.getElementById('gWeightScale').value);
   const hg = parseFloat(document.getElementById('gHg5').value);
   const bl = parseFloat(document.getElementById('gBl5').value);
-  return !!scale && !!hg && !!bl;
+  const ht = parseFloat(document.getElementById('gHt5').value);
+  const rw = parseFloat(document.getElementById('gRw5').value);
+  const pg = parseFloat(document.getElementById('gPg5').value);
+  return !!scale && !!hg && !!bl && !!ht && !!rw && !!pg;
 }
 
 function recalcAddGoat() {
@@ -1975,24 +2005,31 @@ async function saveGoat() {
   if (!c || !h || !response) { showToast(L('⚠️ Select the household response','⚠️ घर की प्रतिक्रिया चुनें'), false); return; }
   const teeth = document.getElementById('gTeeth').value;
   const quality = document.getElementById('gQuality').value;
-  if (!allWeightFieldsFilled()) { showToast(L('⚠️ Weight, heart girth, and body length are all required','⚠️ वजन, हार्ट गर्थ और बॉडी लेंथ — तीनों जरूरी हैं'), false); return; }
+  if (!allWeightFieldsFilled()) { showToast(L('⚠️ Weight, heart girth, body length, height, rump width, and paunch girth are all required','⚠️ वजन, हार्ट गर्थ, बॉडी लेंथ, ऊंचाई, रम्प चौड़ाई और पौंच गर्थ — सभी जरूरी हैं'), false); return; }
   const weight = currentWeight();
   const quote = computeQuote(c.region, sex, teeth, weight, quality);
   if (!quote.eligible || quote.noRateCard) { showToast(L('⚠️ Please fill in all details correctly first','⚠️ पहले पूरी जानकारी सही भरें'), false); return; }
   document.getElementById('btnSaveGoat').disabled = true; // guard against a double tap while photos save
   const photosTaken = Object.keys(capturedPhotos).length;
-  // Field-testing phase: every goat is captured scale + heart girth/body
-  // length + optional height/rump/paunch, regardless of camp.weight_mode —
-  // see prepAddGoat(). weight_method is recorded as 'both' to accurately
-  // reflect what was actually captured, not whatever the camp's nominal
-  // weight_mode says.
-  const eff = computeEffectiveWeight(document.getElementById('gWeightScale').value, document.getElementById('gHg5').value, document.getElementById('gBl5').value);
+  // Field-testing phase: every goat is captured scale + all 5 tape
+  // measurements, regardless of camp.weight_mode — see prepAddGoat().
+  // weight_method is recorded as 'both' to accurately reflect what was
+  // actually captured, not whatever the camp's nominal weight_mode says.
+  // weight_formula_kg keeps meaning "whichever formula value was actually
+  // used" (now min(F2,F3)); the two new columns hold F2 and F3 individually
+  // so they can be compared against each other and real scale weight later.
+  const eff = computeEffectiveWeight(
+    document.getElementById('gWeightScale').value, document.getElementById('gHg5').value, document.getElementById('gBl5').value,
+    document.getElementById('gHt5').value, document.getElementById('gRw5').value, document.getElementById('gPg5').value
+  );
   const row = {
     id: crypto.randomUUID(), household_id: h.id, camp_id: c.id,
     sex, teeth, quality, weight_kg: weight, weight_method: 'both',
     weight_source: eff ? eff.method : null,
     weight_scale_kg: eff ? eff.scale : null,
     weight_formula_kg: eff ? eff.formula : null,
+    weight_formula_f2_kg: eff ? eff.f2 : null,
+    weight_formula_f3_kg: eff ? eff.f3 : null,
     heart_girth: parseFloat(document.getElementById('gHg5').value) || null,
     body_length: parseFloat(document.getElementById('gBl5').value) || null,
     height_cm: parseFloat(document.getElementById('gHt5').value) || null,

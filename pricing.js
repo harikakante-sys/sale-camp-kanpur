@@ -31,11 +31,22 @@ function classify(sexVal, teethStr, weight) {
 }
 
 // Weight estimate from tape measurements, for camps without a working scale.
-// Formula as given in the original field-app prototype.
+// Formula as given in the original field-app prototype. Referred to as "F2"
+// now that a second formula (F3, below) exists alongside it.
 function estimateWeightFromTape(hg, bl) {
   if (!hg || !bl) return null;
   const hgIn = hg / 2.54, blIn = bl / 2.54;
   return 0.003 * Math.pow(hgIn, 2.1) * Math.pow(blIn, 0.67);
+}
+
+// F3: a second weight-estimation formula, using all 5 measurements (heart
+// girth, body length, paunch girth, rump width, height) instead of just 2.
+// Deployed alongside F2 (not replacing it) specifically to compare both
+// against real scale weight and each other — same inches conversion as F2.
+function estimateWeightFromMeasurementsF3(hg, bl, pg, rw, h) {
+  if (!hg || !bl || !pg || !rw || !h) return null;
+  const hgIn = hg / 2.54, blIn = bl / 2.54, pgIn = pg / 2.54, rwIn = rw / 2.54, hIn = h / 2.54;
+  return 0.001747 * Math.pow(hgIn, 1.825) * Math.pow(blIn, 0.536) * Math.pow(pgIn, 0.059) * Math.pow(rwIn, 0.016) * Math.pow(hIn, 0.503);
 }
 
 // Full price quote for a goat, given the currently-synced rate card for its region.
@@ -53,7 +64,7 @@ function computeQuote(rateCache, region, sexVal, teethStr, weight, quality) {
 
 // Works both as a plain <script> in the browser (exposes window.PricingLib)
 // and as a Node module for tests (module.exports) — no build step needed.
-const PricingLib = { classify, estimateWeightFromTape, computeQuote };
+const PricingLib = { classify, estimateWeightFromTape, estimateWeightFromMeasurementsF3, computeQuote };
 if (typeof module !== 'undefined' && module.exports) {
   module.exports = PricingLib;
 } else {
