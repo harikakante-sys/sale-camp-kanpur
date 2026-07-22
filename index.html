@@ -532,7 +532,7 @@
   <div class="back-row"><div class="back-ic" onclick="showScreen('camps')">←</div><div><div class="scr-title" data-en="Settings" data-hi="सेटिंग्स">सेटिंग्स</div></div></div>
 
   <div class="card">
-    <div class="card-title" data-en="Claude AI - quality suggestion" data-hi="Claude AI - क्वालिटी पहचान">Claude AI - क्वालिटी पहचान</div>
+    <div class="card-title" data-en="AI - quality suggestion" data-hi="AI - क्वालिटी पहचान">AI - क्वालिटी पहचान</div>
     <p style="font-size:13px; color:var(--grey-500); margin-bottom:4px;" data-en="AI will automatically suggest a quality grade once all 3 angle photos are taken." data-hi="तीनों फोटो लेने के बाद AI स्वचालित रूप से क्वालिटी का अनुमान लगाएगा।">तीनों फोटो लेने के बाद AI स्वचालित रूप से क्वालिटी का अनुमान लगाएगा।</p>
     <p style="font-size:11.5px; color:var(--grey-500);" id="aiProxyStatus">—</p>
     <p style="font-size:11.5px; color:var(--amber, #b45309); margin-top:6px;" id="aiLastError"></p>
@@ -684,12 +684,13 @@ const SUPABASE_URL = "https://qiggtdqsxwssieznuuwq.supabase.co";
 const SUPABASE_ANON_KEY = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InFpZ2d0ZHFzeHdzc2llem51dXdxIiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODMzNDg3MDcsImV4cCI6MjA5ODkyNDcwN30.d3205FMU7nuel1_eANgvj4bYRAH5iTKJ4CopMvMo-r4";
 const FALLBACK_REGIONS = ["Sarwankhera", "Akbarpur", "Amraudha"];
 const HISTORY_DAYS = 15;
-// URL of the Google Apps Script proxy that holds the real Claude API key
-// server-side (see claude_proxy_appsscript.gs in the sale-camp-v2 folder —
-// this is the same proxy, shared across both apps since it's just an HTTP
+// URL of the Google Apps Script proxy that holds the real quality-grading
+// API key server-side (see claude_proxy_appsscript.gs in the sale-camp-v2
+// folder — same file/URL as before, now calling a Roboflow classification
+// model instead of Claude; shared across both apps since it's just an HTTP
 // endpoint, not tied to one frontend). The app never sees the key itself —
 // it just calls this URL with 3 photos and gets back a suggested quality.
-const CLAUDE_PROXY_URL = "https://script.google.com/macros/s/AKfycbxBS2EvErzUMkbuVHCbEhRN2kChtlVIexXZHFPsALKfK6zF3TA7idhxVt7a09VVTZJS/exec";
+const AI_QUALITY_PROXY_URL = "https://script.google.com/macros/s/AKfycbxBS2EvErzUMkbuVHCbEhRN2kChtlVIexXZHFPsALKfK6zF3TA7idhxVt7a09VVTZJS/exec";
 // Unlocks mandi-weight entry and the admin dashboard on a device — entered
 // once in Settings, remembered on that device until "Lock" is tapped or
 // local data is cleared. This is NOT real security (anyone who reads this
@@ -902,7 +903,7 @@ function showScreen(name) {
 }
 
 function renderSettings() {
-  document.getElementById('aiProxyStatus').textContent = (CLAUDE_PROXY_URL && !CLAUDE_PROXY_URL.startsWith('PASTE_'))
+  document.getElementById('aiProxyStatus').textContent = (AI_QUALITY_PROXY_URL && !AI_QUALITY_PROXY_URL.startsWith('PASTE_'))
     ? L("This is set up centrally — you don't need to do anything.",'यह केंद्रीय रूप से सेट है — आपको कुछ नहीं करना है।')
     : L("AI quality suggestion is currently off (admin hasn't set up the proxy).",'AI क्वालिटी सुझाव अभी बंद है (admin ने प्रॉक्सी सेट नहीं की)।');
   const lastAiErr = store.get('sc_last_ai_error', null);
@@ -1874,7 +1875,7 @@ function acceptPhoto(idx, compressed) {
   placeholder.style.display = 'none';
   // AI quality check runs once — only after all 3 angles are captured
   if (capturedPhotos[1] && capturedPhotos[2] && capturedPhotos[3]) {
-    analyzePhotoWithClaude();
+    analyzePhotoQuality();
   }
 }
 
@@ -1914,16 +1915,19 @@ function blobToBase64(blob) {
   });
 }
 
-/* ═══════════════════════ CLAUDE AI (via secure proxy — see claude_proxy_appsscript.gs) ═══════════════════════
-   Any failure here is shown on-screen (not just console.error) and saved to
-   sc_last_ai_error so it's visible later in Settings too — PS phones are the
-   only place this ever runs, and there's no DevTools console to check there. */
+/* ═══════════════════════ AI QUALITY GRADING (via secure proxy — see claude_proxy_appsscript.gs) ═══════════════════════
+   Runs each of the 3 angle photos through a Roboflow classification model
+   (one call per photo) and combines the 3 results by majority vote — see
+   the proxy script for that logic. Any failure here is shown on-screen (not
+   just console.error) and saved to sc_last_ai_error so it's visible later
+   in Settings too — PS phones are the only place this ever runs, and
+   there's no DevTools console to check there. */
 function recordAiError(detail) {
   store.set('sc_last_ai_error', { detail, at: new Date().toISOString() });
 }
 
-async function analyzePhotoWithClaude() {
-  if (!CLAUDE_PROXY_URL || CLAUDE_PROXY_URL.startsWith('PASTE_')) return; // AI suggestion off until admin sets this up
+async function analyzePhotoQuality() {
+  if (!AI_QUALITY_PROXY_URL || AI_QUALITY_PROXY_URL.startsWith('PASTE_')) return; // AI suggestion off until admin sets this up
 
   const row = document.getElementById('aiQualityRow');
   const label = document.getElementById('aiQualityLabel');
@@ -1932,7 +1936,7 @@ async function analyzePhotoWithClaude() {
 
   try {
     const [front, side, back] = await Promise.all([1,2,3].map(i => blobToBase64(capturedPhotos[i])));
-    const resp = await fetch(CLAUDE_PROXY_URL, {
+    const resp = await fetch(AI_QUALITY_PROXY_URL, {
       method: 'POST',
       // text/plain avoids a CORS preflight (Apps Script web apps don't answer
       // OPTIONS requests) — the proxy just JSON.parses the raw body either
@@ -1954,17 +1958,12 @@ async function analyzePhotoWithClaude() {
       return;
     }
     const q = result.quality || null;
-
-    // Bonus signal from the same call — the AI vision check already looked
-    // at all 3 photos to grade quality, so it can flag "photo unclear" at no
-    // extra cost. Purely informational, never blocks anything.
-    const issueNote = document.getElementById('aiPhotoIssueNote');
-    if (result.photo_issue) {
-      issueNote.textContent = '🔍 ' + L('AI noticed: ','AI ने देखा: ') + result.photo_issue;
-      issueNote.classList.remove('hidden');
-    } else {
-      issueNote.classList.add('hidden');
-    }
+    // The old Claude-based check could also flag "this photo looks unclear"
+    // as a bonus from the same call — a narrow classifier can't do that kind
+    // of open-ended visual check, so that note is gone. The on-device
+    // blur/darkness check (assessPhotoQuality, right after each photo is
+    // taken) is separate from this proxy entirely and still runs as before.
+    document.getElementById('aiPhotoIssueNote').classList.add('hidden');
 
     if (q) {
       aiSuggestedQuality = q;
@@ -1981,7 +1980,7 @@ async function analyzePhotoWithClaude() {
         recalcAddGoat();
       }
     } else {
-      recordAiError('Proxy responded but no quality could be read from Claude\'s reply');
+      recordAiError('Proxy responded but no quality could be read from the AI model\'s reply');
       label.textContent = L('⚠️ AI could not judge quality this time (see Settings)', '⚠️ इस बार AI क्वालिटी तय नहीं कर पाया (Settings देखें)');
     }
   } catch (err) {
