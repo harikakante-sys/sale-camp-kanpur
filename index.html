@@ -684,13 +684,13 @@ const SUPABASE_URL = "https://qiggtdqsxwssieznuuwq.supabase.co";
 const SUPABASE_ANON_KEY = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InFpZ2d0ZHFzeHdzc2llem51dXdxIiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODMzNDg3MDcsImV4cCI6MjA5ODkyNDcwN30.d3205FMU7nuel1_eANgvj4bYRAH5iTKJ4CopMvMo-r4";
 const FALLBACK_REGIONS = ["Sarwankhera", "Akbarpur", "Amraudha"];
 const HISTORY_DAYS = 15;
-// URL of the Google Apps Script proxy that holds the real quality-grading
-// API key server-side (see claude_proxy_appsscript.gs in the sale-camp-v2
-// folder — same file/URL as before, now calling a Roboflow classification
-// model instead of Claude; shared across both apps since it's just an HTTP
-// endpoint, not tied to one frontend). The app never sees the key itself —
-// it just calls this URL with 3 photos and gets back a suggested quality.
-const AI_QUALITY_PROXY_URL = "https://script.google.com/macros/s/AKfycbxBS2EvErzUMkbuVHCbEhRN2kChtlVIexXZHFPsALKfK6zF3TA7idhxVt7a09VVTZJS/exec";
+// Direct call to our own trained goat-quality classifier (EfficientNet-B0,
+// hosted on Render). No API key/proxy needed — this endpoint takes one photo
+// and returns a grade + confidence, so unlike the old Roboflow setup nothing
+// server-side needs to be hidden. Free-tier hosting spins down when idle, so
+// the health-check URL is pinged on page load to start it waking up early.
+const AI_QUALITY_API_URL = "https://goat-quality-classifier.onrender.com/predict";
+const AI_QUALITY_HEALTH_URL = "https://goat-quality-classifier.onrender.com/";
 // Unlocks mandi-weight entry and the admin dashboard on a device — entered
 // once in Settings, remembered on that device until "Lock" is tapped or
 // local data is cleared. This is NOT real security (anyone who reads this
@@ -783,6 +783,7 @@ if ('serviceWorker' in navigator) {
 
 /* ═══════════════════════ INIT ═══════════════════════ */
 window.onload = async () => {
+  warmUpAiService();
   await refreshPsList();
   await refreshRegions();
   populateRegionSelects();
@@ -903,9 +904,9 @@ function showScreen(name) {
 }
 
 function renderSettings() {
-  document.getElementById('aiProxyStatus').textContent = (AI_QUALITY_PROXY_URL && !AI_QUALITY_PROXY_URL.startsWith('PASTE_'))
+  document.getElementById('aiProxyStatus').textContent = (AI_QUALITY_API_URL && !AI_QUALITY_API_URL.startsWith('PASTE_'))
     ? L("This is set up centrally — you don't need to do anything.",'यह केंद्रीय रूप से सेट है — आपको कुछ नहीं करना है।')
-    : L("AI quality suggestion is currently off (admin hasn't set up the proxy).",'AI क्वालिटी सुझाव अभी बंद है (admin ने प्रॉक्सी सेट नहीं की)।');
+    : L("AI quality suggestion is currently off (admin hasn't set up the AI service).",'AI क्वालिटी सुझाव अभी बंद है (admin ने AI सेवा सेट नहीं की)।');
   const lastAiErr = store.get('sc_last_ai_error', null);
   const aiErrEl = document.getElementById('aiLastError');
   aiErrEl.textContent = lastAiErr
@@ -1915,72 +1916,73 @@ function blobToBase64(blob) {
   });
 }
 
-/* ═══════════════════════ AI QUALITY GRADING (via secure proxy — see claude_proxy_appsscript.gs) ═══════════════════════
-   Runs each of the 3 angle photos through a Roboflow classification model
-   (one call per photo) and combines the 3 results by majority vote — see
-   the proxy script for that logic. Any failure here is shown on-screen (not
-   just console.error) and saved to sc_last_ai_error so it's visible later
-   in Settings too — PS phones are the only place this ever runs, and
-   there's no DevTools console to check there. */
+/* ═══════════════════════ AI QUALITY GRADING (direct call to our own classifier) ═══════════════════════
+   Sends the first (Front) angle photo to our trained model and shows its
+   grade + confidence. Any failure here is shown on-screen (not just
+   console.error) and saved to sc_last_ai_error so it's visible later in
+   Settings too — PS phones are the only place this ever runs, and there's
+   no DevTools console to check there. */
 function recordAiError(detail) {
   store.set('sc_last_ai_error', { detail, at: new Date().toISOString() });
 }
 
+// Free-tier hosting spins down after inactivity — pinging the health check
+// on page load gets it waking up before the PS has finished taking photos,
+// so the real /predict call is hopefully hitting a warm server.
+function warmUpAiService() {
+  if (!AI_QUALITY_HEALTH_URL) return;
+  fetch(AI_QUALITY_HEALTH_URL).catch(() => {});
+}
+
 async function analyzePhotoQuality() {
-  if (!AI_QUALITY_PROXY_URL || AI_QUALITY_PROXY_URL.startsWith('PASTE_')) return; // AI suggestion off until admin sets this up
+  if (!AI_QUALITY_API_URL || AI_QUALITY_API_URL.startsWith('PASTE_')) return; // AI suggestion off until admin sets this up
 
   const row = document.getElementById('aiQualityRow');
   const label = document.getElementById('aiQualityLabel');
   row.classList.remove('hidden');
-  label.innerHTML = '<span class="spinner"></span> ' + L('AI analyzing...', 'AI विश्लेषण हो रहा है...');
+  label.innerHTML = '<span class="spinner"></span> ' + L('AI analyzing... (can take up to a minute if the server was asleep)', 'AI विश्लेषण हो रहा है... (सर्वर सो रहा हो तो एक मिनट तक लग सकता है)');
 
   try {
-    const [front, side, back] = await Promise.all([1,2,3].map(i => blobToBase64(capturedPhotos[i])));
-    const resp = await fetch(AI_QUALITY_PROXY_URL, {
+    const dataUrl = await blobToBase64(capturedPhotos[1]);
+    const imageBase64 = dataUrl.split(',')[1];
+    const resp = await fetch(AI_QUALITY_API_URL, {
       method: 'POST',
-      // text/plain avoids a CORS preflight (Apps Script web apps don't answer
-      // OPTIONS requests) — the proxy just JSON.parses the raw body either
-      // way, so the declared content type here doesn't need to match.
-      headers: { 'Content-Type': 'text/plain;charset=utf-8' },
-      body: JSON.stringify({ images: [front, side, back] })
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ image: imageBase64 })
     });
 
     if (!resp.ok) {
       const bodyText = await resp.text().catch(() => '');
-      recordAiError('HTTP ' + resp.status + ' from proxy' + (bodyText ? (': ' + bodyText.slice(0,200)) : ''));
+      recordAiError('HTTP ' + resp.status + ' from AI service' + (bodyText ? (': ' + bodyText.slice(0,200)) : ''));
       label.textContent = L('⚠️ AI check failed (see Settings for details)', '⚠️ AI जांच विफल (विवरण के लिए Settings देखें)');
       return;
     }
     const result = await resp.json();
-    if (result.error) {
-      recordAiError(String(result.error));
-      label.textContent = L('⚠️ AI check failed (see Settings for details)', '⚠️ AI जांच विफल (विवरण के लिए Settings देखें)');
-      return;
-    }
-    const q = result.quality || null;
+    const q = result.grade || null;
     // The old Claude-based check could also flag "this photo looks unclear"
     // as a bonus from the same call — a narrow classifier can't do that kind
     // of open-ended visual check, so that note is gone. The on-device
     // blur/darkness check (assessPhotoQuality, right after each photo is
-    // taken) is separate from this proxy entirely and still runs as before.
+    // taken) is separate from this API call entirely and still runs as before.
     document.getElementById('aiPhotoIssueNote').classList.add('hidden');
 
     if (q) {
       aiSuggestedQuality = q;
       const qLabels = {'1st':L('First (1st)','पहली (1st)'),'2nd':L('Second (2nd)','दूसरी (2nd)'),'3rd':L('Third (3rd)','तीसरी (3rd)')};
-      label.textContent = L('AI suggestion: ','AI सुझाव: ') + qLabels[q];
+      const confPart = result.confidence_pct ? ' (' + result.confidence_pct + ')' : '';
+      label.textContent = L('AI suggestion: ','AI सुझाव: ') + qLabels[q] + confPart;
       // Also shown right under the Quality dropdown itself, not just up here
       // in the photo card — stays visible regardless of scroll position, and
       // regardless of whether the dropdown is later changed away from it.
       const note = document.getElementById('aiQualityNote');
-      note.textContent = L('🤖 AI suggested: ','🤖 AI ने सुझाया: ') + qLabels[q];
+      note.textContent = L('🤖 AI suggested: ','🤖 AI ने सुझाया: ') + qLabels[q] + confPart;
       note.classList.remove('hidden');
       if (!document.getElementById('gQuality').value) {
         document.getElementById('gQuality').value = q;
         recalcAddGoat();
       }
     } else {
-      recordAiError('Proxy responded but no quality could be read from the AI model\'s reply');
+      recordAiError('AI service responded but no grade could be read from the reply');
       label.textContent = L('⚠️ AI could not judge quality this time (see Settings)', '⚠️ इस बार AI क्वालिटी तय नहीं कर पाया (Settings देखें)');
     }
   } catch (err) {
