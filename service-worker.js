@@ -7,11 +7,13 @@
    this cache was cache-first with a version string that was never bumped
    across several rounds of fixes, so none of them ever reached a phone that
    had already opened the app once. */
-const CACHE_NAME = 'sale-camp-shell-v2';
+const CACHE_NAME = 'sale-camp-shell-v3';
 const SHELL_FILES = [
   './',
   './index.html',
   './pricing.js',
+  './weight_ens_calculator.js',
+  './ens_model_export.json',
   './manifest.json',
   './vendor/supabase-js.min.js',
   './icons/icon-192.png',
@@ -44,7 +46,7 @@ self.addEventListener('fetch', (event) => {
   // as the phone has internet again. Falls back to the cached copy only when
   // there's genuinely no connection (the offline-use case this cache exists for).
   const isShell = event.request.mode === 'navigate' ||
-    ['/', '/index.html', '/pricing.js', '/manifest.json'].some(p => url.pathname.endsWith(p));
+    ['/', '/index.html', '/pricing.js', '/weight_ens_calculator.js', '/ens_model_export.json', '/manifest.json'].some(p => url.pathname.endsWith(p));
   if (isShell) {
     event.respondWith(
       fetch(event.request).then((resp) => {
