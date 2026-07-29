@@ -12,6 +12,7 @@
      any server other than Supabase itself once it's running. -->
 <script src="vendor/supabase-js.min.js"></script>
 <script src="pricing.js"></script>
+<script src="weight_ens_calculator.js"></script>
 <style>
   @import url('https://fonts.googleapis.com/css2?family=Noto+Sans+Devanagari:wght@400;500;600;700&family=Inter:wght@400;500;600&display=swap');
   :root {
@@ -192,11 +193,25 @@
   .shrinkage-banner { background:var(--amber-pale); border:1.5px solid var(--amber); border-radius:8px; padding:10px 14px; margin-top:10px; display:flex; justify-content:space-between; align-items:center; }
   .locked-note { font-size:12.5px; color:var(--grey-500); background:var(--grey-100); border-radius:8px; padding:10px 12px; }
 
-  /* 'both' weight mode: scale + tape shown together with the lower one called out */
-  .eff-weight-row { display:flex; align-items:center; justify-content:space-between; background:var(--green-pale); border-radius:8px; padding:10px 13px; margin-top:10px; }
-  .eff-weight-label { font-size:12px; color:var(--green-dark); }
-  .eff-weight-value { font-size:18px; font-weight:700; color:var(--green-dark); }
-  .eff-weight-breakdown { font-size:10.5px; color:var(--grey-500); margin-top:2px; }
+  /* 'both' weight mode: raw scale + formula readings, informational only —
+     no automatic winner is picked here anymore (see .price-card below). */
+  .eff-weight-row { display:flex; align-items:center; background:var(--green-pale); border-radius:8px; padding:10px 13px; margin-top:10px; }
+  .eff-weight-breakdown { font-size:11px; color:var(--grey-700); }
+
+  /* Two selectable price points — scale and formula weight can disagree, so
+     instead of silently auto-picking the lower one, both are shown and a
+     human taps one to say which price to actually use for this sale. */
+  .price-choice-row { display:none; gap:10px; margin-bottom:12px; }
+  .price-choice-row.show { display:flex; }
+  .price-card { flex:1; border:1.5px solid var(--grey-300); border-radius:var(--radius); padding:13px; cursor:pointer; background:var(--white); text-align:center; }
+  .price-card.sel { border-color:var(--green-mid); background:var(--green-pale); box-shadow:0 0 0 2px rgba(45,122,90,0.15); }
+  .price-card.ineligible { opacity:0.55; cursor:not-allowed; }
+  .price-card-label { font-size:11px; font-weight:700; color:var(--grey-500); text-transform:uppercase; letter-spacing:0.3px; margin-bottom:6px; }
+  .price-card-weight { font-size:13px; color:var(--grey-700); margin-bottom:2px; }
+  .price-card-cat { font-size:11.5px; color:var(--grey-500); margin-bottom:8px; }
+  .price-card-price { font-size:20px; font-weight:700; color:var(--green-dark); }
+  .price-card.ineligible .price-card-price { color:var(--grey-500); font-size:13px; }
+  .price-choice-hint { font-size:11.5px; color:var(--grey-500); text-align:center; margin:-4px 0 12px; }
 </style>
 </head>
 <body>
@@ -452,12 +467,8 @@
         <div class="field"><label class="req" data-en="Paunch girth (cm)" data-hi="पौंच गर्थ (cm)">पौंच गर्थ (cm)</label><input type="number" id="gPg5" oninput="recalcAddGoat()"></div>
       </div>
       <div class="field" id="tapeOut5Wrap"><label data-en="Estimated weight" data-hi="अनुमानित वजन">अनुमानित वजन</label><input type="text" id="gWeightTapeOut5" readonly style="background:#F8F8F8;" value="-- kg"></div>
-      <div class="eff-weight-row" id="effWeightRow" style="display:none;">
-        <div>
-          <div class="eff-weight-label" data-en="Effective weight (lower)" data-hi="प्रभावी वजन (न्यूनतम)">प्रभावी वजन (न्यूनतम)</div>
-          <div class="eff-weight-breakdown" id="effWeightBreakdown">—</div>
-        </div>
-        <div class="eff-weight-value" id="effWeightVal">— kg</div>
+      <div class="eff-weight-row" id="weightReadingsRow" style="display:none;">
+        <div class="eff-weight-breakdown" id="weightReadingsBreakdown">—</div>
       </div>
     </div>
   </div>
@@ -466,11 +477,21 @@
   <div class="warning-msg" id="gNoRate" data-en="⚠️ No valid rate card is available for this region. Connect to the internet once and sync." data-hi="⚠️ इस क्षेत्र के लिए कोई मान्य रेट कार्ड उपलब्ध नहीं है। इंटरनेट से एक बार जुड़ें और सिंक करें।">⚠️ इस क्षेत्र के लिए कोई मान्य रेट कार्ड उपलब्ध नहीं है। इंटरनेट से एक बार जुड़ें और सिंक करें।</div>
   <div class="warning-msg" id="gMissingWeight" data-en="⚠️ Weight, heart girth, body length, height, rump width, and paunch girth are all required." data-hi="⚠️ वजन, हार्ट गर्थ, बॉडी लेंथ, ऊंचाई, रम्प चौड़ाई और पौंच गर्थ — सभी जरूरी हैं।">⚠️ वजन, हार्ट गर्थ, बॉडी लेंथ, ऊंचाई, रम्प चौड़ाई और पौंच गर्थ — सभी जरूरी हैं।</div>
 
-  <div class="result-card" id="gResult">
-    <div class="result-row"><span class="result-label" data-en="Category" data-hi="श्रेणी">श्रेणी</span><span class="result-value" id="gCat">—</span></div>
-    <hr class="result-divider">
-    <div class="result-row"><span class="result-label" data-en="Final price" data-hi="अंतिम मूल्य">अंतिम मूल्य</span><span class="result-value big" id="gFinal">₹—</span></div>
+  <div class="price-choice-row" id="priceChoiceRow">
+    <div class="price-card" id="priceCardScale" onclick="setPriceChoice('scale')">
+      <div class="price-card-label" data-en="Scale weight" data-hi="तराजू वजन">तराजू वजन</div>
+      <div class="price-card-weight" id="priceCardScaleWeight">— kg</div>
+      <div class="price-card-cat" id="priceCardScaleCat">—</div>
+      <div class="price-card-price" id="priceCardScalePrice">₹—</div>
+    </div>
+    <div class="price-card" id="priceCardFormula" onclick="setPriceChoice('formula')">
+      <div class="price-card-label" data-en="Formula weight (MIN)" data-hi="फॉर्मूला वजन (MIN)">फॉर्मूला वजन (MIN)</div>
+      <div class="price-card-weight" id="priceCardFormulaWeight">— kg</div>
+      <div class="price-card-cat" id="priceCardFormulaCat">—</div>
+      <div class="price-card-price" id="priceCardFormulaPrice">₹—</div>
+    </div>
   </div>
+  <div class="price-choice-hint" id="priceChoiceHint" style="display:none;" data-en="Tap the price to use for this sale" data-hi="इस बिक्री के लिए इस्तेमाल करने वाला मूल्य चुनें">इस बिक्री के लिए इस्तेमाल करने वाला मूल्य चुनें</div>
 
   <div class="card">
     <div class="card-title" data-en="Household response" data-hi="घर की प्रतिक्रिया">घर की प्रतिक्रिया</div>
@@ -691,6 +712,10 @@ const HISTORY_DAYS = 15;
 // the health-check URL is pinged on page load to start it waking up early.
 const AI_QUALITY_API_URL = "https://goat-quality-classifier.onrender.com/predict";
 const AI_QUALITY_HEALTH_URL = "https://goat-quality-classifier.onrender.com/";
+// Bump this by hand in the same edit whenever a newly retrained
+// ens_model_export.json is uploaded, so every goat record stays traceable to
+// exactly which model version priced it (see Formula/GoatWeight_AlgoComparison.docx).
+const WEIGHT_MODEL_VERSION = 'v1';
 // Unlocks mandi-weight entry and the admin dashboard on a device — entered
 // once in Settings, remembered on that device until "Lock" is tapped or
 // local data is cleared. This is NOT real security (anyone who reads this
@@ -774,6 +799,24 @@ let capturedPhotos = {}; // { 1: Blob, 2: Blob, 3: Blob } for the goat form curr
 let aiSuggestedQuality = null;
 let isAdmin = store.get('sc_is_admin', false);
 
+// The trained weight model bundle (see weight_ens_calculator.js). Loaded from
+// localStorage immediately so the app can price a goat offline right after
+// install; refreshed from the network on every load so a newly-retrained
+// model (see Formula/GoatWeight_AlgoComparison.docx) reaches the field
+// without needing a phone-by-phone reinstall.
+let ENS_MODEL = JSON.parse(localStorage.getItem('weight_model') || 'null');
+async function loadWeightModel() {
+  try {
+    const data = await fetch('ens_model_export.json').then(r => r.json());
+    ENS_MODEL = data;
+    localStorage.setItem('weight_model', JSON.stringify(data));
+    localStorage.setItem('weight_model_synced_at', new Date().toISOString());
+  } catch (err) {
+    console.error('Could not fetch weight model, using cached copy if any', err);
+  }
+  recalcAddGoat(); // in case a PS is mid-entry waiting on the very first load
+}
+
 /* ═══════════════════════ INSTALL / OFFLINE (service worker) ═══════════════════════
    Caches the app shell (this page, pricing.js, the vendored Supabase library,
    icons) so the app opens with zero internet after it's been installed once. */
@@ -784,6 +827,7 @@ if ('serviceWorker' in navigator) {
 /* ═══════════════════════ INIT ═══════════════════════ */
 window.onload = async () => {
   warmUpAiService();
+  loadWeightModel();
   await refreshPsList();
   await refreshRegions();
   populateRegionSelects();
@@ -1567,7 +1611,12 @@ function prepAddGoat() {
   document.getElementById('aiQualityRow').classList.add('hidden');
   document.getElementById('aiQualityNote').classList.add('hidden');
   document.getElementById('aiPhotoIssueNote').classList.add('hidden');
-  document.getElementById('gResult').classList.remove('show');
+  priceChoice = null;
+  document.getElementById('priceChoiceRow').classList.remove('show');
+  document.getElementById('priceChoiceHint').style.display = 'none';
+  document.getElementById('priceCardScale').classList.remove('sel', 'ineligible');
+  document.getElementById('priceCardFormula').classList.remove('sel', 'ineligible');
+  document.getElementById('weightReadingsRow').style.display = 'none';
   document.getElementById('gWarning').classList.remove('show');
   document.getElementById('gNoRate').classList.remove('show');
   document.getElementById('gMissingWeight').classList.remove('show');
@@ -1583,7 +1632,7 @@ function prepAddGoat() {
   document.getElementById('tapeFields2').style.display = 'none';
   document.getElementById('tapeFields5').style.display = 'block';
   document.getElementById('tapeOut5Wrap').style.display = 'none';
-  document.getElementById('effWeightRow').style.display = 'none';
+  document.getElementById('weightReadingsRow').style.display = 'none';
 
   renderGoatProgress();
   if (!rateCache[c.region]) refreshRateCard(c.region);
@@ -1610,60 +1659,136 @@ function setResponse(v) {
   recalcAddGoat();
 }
 
-// 'both' mode: scale and tape are both taken, and the LOWER of the two is
-// used as a safeguard against an inflated tape estimate — matches sale-camp-v2.
-// F2 and F3 are both computed and compared — "formula weight" is whichever
-// of the two comes out lower, then that's compared against the scale
-// reading the same way as before (lower of the two taken as the safeguard).
-// F3 is deployed alongside F2, not replacing it, specifically so both can be
-// validated against real scale weight and each other.
-function computeEffectiveWeight(scaleW, hg, bl, ht, rw, pg) {
+// 'both' mode: scale and tape are both taken. Scale vs formula weight can
+// disagree drastically, so instead of silently taking the lower one as a
+// safeguard, BOTH are turned into their own price and a human picks which
+// price to actually use (see setPriceChoice/recalcAddGoat/saveGoat below).
+// "Formula weight" is the 6-model ensemble's MIN(ElasticNet,RandomForest,F2)
+// value (see weight_ens_calculator.js + Formula/GoatWeight_AlgoComparison.docx,
+// which validated this against 250 real weighed goats and found it's the only
+// model that stays inside the program's no-overpay policy). F2 and MIN are
+// also shown as a small info line even though only MIN feeds into a price —
+// F3 is retired (see the write-up), no longer computed at all.
+function computeWeightReadings(scaleW, hg, bl, ht, rw, pg, sexVal, teethVal) {
   const sw = parseFloat(scaleW) || null;
-  const f2 = PricingLib.estimateWeightFromTape(parseFloat(hg) || 0, parseFloat(bl) || 0) || null;
-  const f3 = PricingLib.estimateWeightFromMeasurementsF3(parseFloat(hg) || 0, parseFloat(bl) || 0, parseFloat(pg) || 0, parseFloat(rw) || 0, parseFloat(ht) || 0) || null;
+  const hgN = parseFloat(hg) || null, blN = parseFloat(bl) || null, htN = parseFloat(ht) || null,
+        rwN = parseFloat(rw) || null, pgN = parseFloat(pg) || null;
+  const measurementsComplete = !!(hgN && blN && htN && rwN && pgN && sexVal && teethVal !== '' && teethVal != null);
 
-  let formula = null, formulaSource = null;
-  if (f2 != null && f3 != null) { formula = Math.min(f2, f3); formulaSource = f2 <= f3 ? 'F2' : 'F3'; }
-  else if (f2 != null) { formula = f2; formulaSource = 'F2'; }
-  else if (f3 != null) { formula = f3; formulaSource = 'F3'; }
-
-  if (sw != null && formula != null) return { weight: Math.min(sw, formula), scale: sw, formula, formulaSource, f2, f3, method: 'min' };
-  if (sw != null) return { weight: sw, scale: sw, formula: null, formulaSource: null, f2, f3, method: 'scale' };
-  if (formula != null) return { weight: formula, scale: null, formula, formulaSource, f2, f3, method: 'formula' };
-  return null;
+  let predictions = null, modelPending = false;
+  if (measurementsComplete) {
+    if (ENS_MODEL) {
+      predictions = computeAllPredictions(ENS_MODEL, {
+        hg_cm: hgN, bl_cm: blN, height_cm: htN, rump_w_cm: rwN, paunch_g_cm: pgN,
+        teeth_count: parseInt(teethVal, 10), sex: sexVal,
+      });
+    } else {
+      modelPending = true; // first-ever load, still waiting on the network fetch
+    }
+  }
+  return { scale: sw, formula: predictions ? predictions.min : null, predictions, modelPending };
 }
 
-function renderEffWeight(eff) {
-  const row = document.getElementById('effWeightRow');
-  if (!eff) { row.style.display = 'none'; return; }
+function renderWeightReadings(r) {
+  const row = document.getElementById('weightReadingsRow');
+  if (!r || (!r.predictions && !r.modelPending)) { row.style.display = 'none'; return; }
   row.style.display = 'flex';
-  document.getElementById('effWeightVal').textContent = Math.round(eff.weight) + ' kg';
-  const breakdown = document.getElementById('effWeightBreakdown');
-  const parts = [];
-  if (eff.scale != null) parts.push(L('Scale: ','तराजू: ') + Math.round(eff.scale) + 'kg');
-  if (eff.f2 != null) parts.push('F2: ' + Math.round(eff.f2) + 'kg');
-  if (eff.f3 != null) parts.push('F3: ' + Math.round(eff.f3) + 'kg');
-  breakdown.textContent = parts.join(' | ') + (parts.length > 1 ? (' → ' + L('lower taken','न्यूनतम लिया गया')) : '');
+  const el = document.getElementById('weightReadingsBreakdown');
+  if (r.predictions) el.textContent = 'F2: ' + Math.round(r.predictions.f2) + 'kg | MIN: ' + Math.round(r.predictions.min) + 'kg';
+  else el.textContent = L('pricing model loading…','प्राइसिंग मॉडल लोड हो रहा है…');
+}
+
+let priceChoice = null; // 'scale' | 'formula' — which price point the PS picked for this goat
+
+function setPriceChoice(v) {
+  const card = document.getElementById(v === 'scale' ? 'priceCardScale' : 'priceCardFormula');
+  if (card.classList.contains('ineligible')) return; // can't pick an option that has no valid price
+  priceChoice = v;
+  document.getElementById('priceCardScale').classList.toggle('sel', v === 'scale');
+  document.getElementById('priceCardFormula').classList.toggle('sel', v === 'formula');
+  updateSaveGoatEnabled();
+}
+
+// Renders one price card and returns whether it's a selectable (valid) option.
+function renderPriceCard(prefix, weight, quote) {
+  const card = document.getElementById('priceCard' + prefix);
+  const weightEl = document.getElementById('priceCard' + prefix + 'Weight');
+  const catEl = document.getElementById('priceCard' + prefix + 'Cat');
+  const priceEl = document.getElementById('priceCard' + prefix + 'Price');
+  if (weight == null) { card.style.display = 'none'; return false; }
+  card.style.display = '';
+  weightEl.textContent = Math.round(weight) + ' kg';
+  if (!quote || !quote.eligible) {
+    card.classList.add('ineligible');
+    catEl.textContent = L('Not eligible', 'पात्र नहीं');
+    priceEl.textContent = '—';
+    return false;
+  }
+  if (quote.noRateCard) {
+    card.classList.add('ineligible');
+    catEl.textContent = L('No rate card', 'रेट कार्ड नहीं');
+    priceEl.textContent = '—';
+    return false;
+  }
+  card.classList.remove('ineligible');
+  catEl.textContent = categoryLabel(quote.category.key);
+  priceEl.textContent = '₹' + fmtNum(quote.finalPrice);
+  return true;
+}
+
+function updateSaveGoatEnabled() {
+  document.getElementById('btnSaveGoat').disabled = !(priceChoice && response);
 }
 
 // Field-testing phase: always scale + all 5 tape measurements together (the
 // "both" behavior), regardless of camp.weight_mode — see prepAddGoat().
-function currentWeight() {
+// Computes both price points, renders both cards, and preserves the PS's
+// existing selection across recalcs unless it's no longer valid.
+function currentWeightReadings() {
   const c = camps.find(x => x.id === currentCampId);
-  if (!c) return null;
-  const eff = computeEffectiveWeight(
+  const teeth = document.getElementById('gTeeth').value;
+  const quality = document.getElementById('gQuality').value;
+  const priceRow = document.getElementById('priceChoiceRow'), hint = document.getElementById('priceChoiceHint');
+  const warn = document.getElementById('gWarning'), noRate = document.getElementById('gNoRate');
+  priceRow.classList.remove('show'); hint.style.display = 'none';
+
+  if (!c) { renderWeightReadings(null); return null; }
+  const r = computeWeightReadings(
     document.getElementById('gWeightScale').value, document.getElementById('gHg5').value, document.getElementById('gBl5').value,
-    document.getElementById('gHt5').value, document.getElementById('gRw5').value, document.getElementById('gPg5').value
+    document.getElementById('gHt5').value, document.getElementById('gRw5').value, document.getElementById('gPg5').value,
+    sex, teeth
   );
-  renderEffWeight(eff);
-  return eff ? eff.weight : null;
+  renderWeightReadings(r);
+  if (!sex || !teeth || !quality || (r.scale == null && r.formula == null)) return r;
+
+  const scaleQuote = r.scale != null ? computeQuote(c.region, sex, teeth, r.scale, quality) : null;
+  const formulaQuote = r.formula != null ? computeQuote(c.region, sex, teeth, r.formula, quality) : null;
+  priceRow.classList.add('show'); hint.style.display = '';
+  const scaleOk = renderPriceCard('Scale', r.scale, scaleQuote);
+  const formulaOk = renderPriceCard('Formula', r.formula, formulaQuote);
+
+  if (!scaleOk && !formulaOk) {
+    priceRow.classList.remove('show'); hint.style.display = 'none';
+    priceChoice = null;
+    const anyNoRate = (scaleQuote && scaleQuote.noRateCard) || (formulaQuote && formulaQuote.noRateCard);
+    const anyIneligible = (scaleQuote && !scaleQuote.eligible) || (formulaQuote && !formulaQuote.eligible);
+    if (anyNoRate) noRate.classList.add('show');
+    else if (anyIneligible) warn.classList.add('show');
+  } else {
+    // Clear a previous selection if that option just became invalid (e.g. a measurement changed)
+    if (priceChoice === 'scale' && !scaleOk) priceChoice = null;
+    if (priceChoice === 'formula' && !formulaOk) priceChoice = null;
+    document.getElementById('priceCardScale').classList.toggle('sel', priceChoice === 'scale');
+    document.getElementById('priceCardFormula').classList.toggle('sel', priceChoice === 'formula');
+  }
+  r.scaleQuote = scaleQuote; r.formulaQuote = formulaQuote;
+  return r;
 }
 
 // All three are mandatory during field testing (not just "enough to compute
 // something") — this is what actually guarantees every goat has a real
-// scale-vs-formula pair to validate the weight formula against, which
-// currentWeight()/computeEffectiveWeight() alone don't enforce (they're
-// happy with just one of the two).
+// scale-vs-formula pair to compare, which currentWeightReadings()/
+// computeWeightReadings() alone don't enforce (they're happy with just one).
 function allWeightFieldsFilled() {
   const scale = parseFloat(document.getElementById('gWeightScale').value);
   const hg = parseFloat(document.getElementById('gHg5').value);
@@ -1675,24 +1800,16 @@ function allWeightFieldsFilled() {
 }
 
 function recalcAddGoat() {
-  const c = camps.find(x => x.id === currentCampId);
-  const weight = currentWeight();
   const teeth = document.getElementById('gTeeth').value;
   const quality = document.getElementById('gQuality').value;
-  const warn = document.getElementById('gWarning'), noRate = document.getElementById('gNoRate'), result = document.getElementById('gResult');
+  const warn = document.getElementById('gWarning'), noRate = document.getElementById('gNoRate');
   const missingWeight = document.getElementById('gMissingWeight');
-  warn.classList.remove('show'); noRate.classList.remove('show'); result.classList.remove('show'); missingWeight.classList.remove('show');
+  warn.classList.remove('show'); noRate.classList.remove('show'); missingWeight.classList.remove('show');
   document.getElementById('btnSaveGoat').disabled = true;
-  if (!sex || !teeth || !quality || !c) return;
-  if (!allWeightFieldsFilled()) { missingWeight.classList.add('show'); return; }
-  if (!weight) return;
-  const quote = computeQuote(c.region, sex, teeth, weight, quality);
-  if (!quote.eligible) { warn.classList.add('show'); return; }
-  if (quote.noRateCard) { noRate.classList.add('show'); return; }
-  document.getElementById('gCat').textContent = categoryLabel(quote.category.key);
-  document.getElementById('gFinal').textContent = '₹' + fmtNum(quote.finalPrice);
-  result.classList.add('show');
-  if (response) document.getElementById('btnSaveGoat').disabled = false;
+  if (!sex || !teeth || !quality) { document.getElementById('priceChoiceRow').classList.remove('show'); document.getElementById('priceChoiceHint').style.display = 'none'; renderWeightReadings(null); return; }
+  if (!allWeightFieldsFilled()) { missingWeight.classList.add('show'); document.getElementById('priceChoiceRow').classList.remove('show'); document.getElementById('priceChoiceHint').style.display = 'none'; renderWeightReadings(null); return; }
+  currentWeightReadings(); // computes both readings, renders both price cards, preserves/clears the selection
+  updateSaveGoatEnabled();
 }
 
 /* ═══════════════════════ PHOTO CAPTURE, COMPRESSION + LOCAL STORAGE ═══════════════════════
@@ -2007,30 +2124,47 @@ async function saveGoat() {
   const teeth = document.getElementById('gTeeth').value;
   const quality = document.getElementById('gQuality').value;
   if (!allWeightFieldsFilled()) { showToast(L('⚠️ Weight, heart girth, body length, height, rump width, and paunch girth are all required','⚠️ वजन, हार्ट गर्थ, बॉडी लेंथ, ऊंचाई, रम्प चौड़ाई और पौंच गर्थ — सभी जरूरी हैं'), false); return; }
-  const weight = currentWeight();
-  const quote = computeQuote(c.region, sex, teeth, weight, quality);
-  if (!quote.eligible || quote.noRateCard) { showToast(L('⚠️ Please fill in all details correctly first','⚠️ पहले पूरी जानकारी सही भरें'), false); return; }
-  document.getElementById('btnSaveGoat').disabled = true; // guard against a double tap while photos save
-  const photosTaken = Object.keys(capturedPhotos).length;
+  if (!priceChoice) { showToast(L('⚠️ Please choose which price to use for this sale','⚠️ कृपया इस बिक्री के लिए मूल्य चुनें'), false); return; }
   // Field-testing phase: every goat is captured scale + all 5 tape
   // measurements, regardless of camp.weight_mode — see prepAddGoat().
   // weight_method is recorded as 'both' to accurately reflect what was
   // actually captured, not whatever the camp's nominal weight_mode says.
-  // weight_formula_kg keeps meaning "whichever formula value was actually
-  // used" (now min(F2,F3)); the two new columns hold F2 and F3 individually
-  // so they can be compared against each other and real scale weight later.
-  const eff = computeEffectiveWeight(
+  // Scale and formula weight can disagree — instead of an automatic min()
+  // safeguard, both are priced independently and priceChoice records which
+  // one the PS actually picked for this sale (see recalcAddGoat/setPriceChoice).
+  // weight_ens_* columns hold the individual model outputs for ongoing
+  // tracking (see Formula/GoatWeight_AlgoComparison.docx) — F3 is retired,
+  // always null now.
+  const r = computeWeightReadings(
     document.getElementById('gWeightScale').value, document.getElementById('gHg5').value, document.getElementById('gBl5').value,
-    document.getElementById('gHt5').value, document.getElementById('gRw5').value, document.getElementById('gPg5').value
+    document.getElementById('gHt5').value, document.getElementById('gRw5').value, document.getElementById('gPg5').value,
+    sex, teeth
   );
+  const scaleQuote = r.scale != null ? computeQuote(c.region, sex, teeth, r.scale, quality) : null;
+  const formulaQuote = r.formula != null ? computeQuote(c.region, sex, teeth, r.formula, quality) : null;
+  const quote = priceChoice === 'scale' ? scaleQuote : formulaQuote;
+  const chosenWeight = priceChoice === 'scale' ? r.scale : r.formula;
+  if (!quote || !quote.eligible || quote.noRateCard) { showToast(L('⚠️ Please fill in all details correctly first','⚠️ पहले पूरी जानकारी सही भरें'), false); return; }
+  document.getElementById('btnSaveGoat').disabled = true; // guard against a double tap while photos save
+  const photosTaken = Object.keys(capturedPhotos).length;
+  const preds = r.predictions;
   const row = {
     id: crypto.randomUUID(), household_id: h.id, camp_id: c.id,
-    sex, teeth, quality, weight_kg: weight, weight_method: 'both',
-    weight_source: eff ? eff.method : null,
-    weight_scale_kg: eff ? eff.scale : null,
-    weight_formula_kg: eff ? eff.formula : null,
-    weight_formula_f2_kg: eff ? eff.f2 : null,
-    weight_formula_f3_kg: eff ? eff.f3 : null,
+    sex, teeth, quality, weight_kg: chosenWeight, weight_method: 'both',
+    weight_source: priceChoice, // 'scale' or 'formula' — which price point the PS chose
+    weight_scale_kg: r.scale,
+    weight_formula_kg: preds ? preds.min : null,
+    weight_formula_f2_kg: preds ? preds.f2 : null,
+    weight_formula_f3_kg: null, // F3 retired — see Formula/GoatWeight_AlgoComparison.docx
+    weight_ens_random_forest_kg: preds ? preds.randomForest : null,
+    weight_ens_elastic_net_kg: preds ? preds.elasticNet : null,
+    weight_ens_avg_kg: preds ? preds.ens : null,
+    weight_ens_blend_kg: preds ? preds.blend : null,
+    weight_model_version: preds ? WEIGHT_MODEL_VERSION : null,
+    scale_final_price: (scaleQuote && scaleQuote.eligible && !scaleQuote.noRateCard) ? scaleQuote.finalPrice : null,
+    scale_category: (scaleQuote && scaleQuote.eligible && !scaleQuote.noRateCard) ? scaleQuote.category.key : null,
+    formula_final_price: (formulaQuote && formulaQuote.eligible && !formulaQuote.noRateCard) ? formulaQuote.finalPrice : null,
+    formula_category: (formulaQuote && formulaQuote.eligible && !formulaQuote.noRateCard) ? formulaQuote.category.key : null,
     heart_girth: parseFloat(document.getElementById('gHg5').value) || null,
     body_length: parseFloat(document.getElementById('gBl5').value) || null,
     height_cm: parseFloat(document.getElementById('gHt5').value) || null,
