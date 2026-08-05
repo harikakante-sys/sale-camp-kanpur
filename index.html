@@ -588,6 +588,7 @@
         <button class="btn-small" style="color:var(--red); border-color:var(--red);" onclick="lockAdmin()" data-en="Lock" data-hi="लॉक करें">लॉक करें</button>
       </div>
       <button class="btn-secondary" style="margin-top:10px;" onclick="showScreen('admindashboard')" data-en="Open admin dashboard" data-hi="Admin dashboard खोलें">Admin dashboard खोलें</button>
+      <button class="btn-secondary" style="margin-top:8px;" onclick="showScreen('manageps')" data-en="Manage PS" data-hi="PS प्रबंधित करें">PS प्रबंधित करें</button>
     </div>
   </div>
 
@@ -621,6 +622,24 @@
 <div class="screen" id="screen-admindashboard">
   <div class="back-row"><div class="back-ic" onclick="showScreen('settings')">←</div><div><div class="scr-title" data-en="Admin dashboard" data-hi="Admin Dashboard">Admin Dashboard</div><div class="scr-sub" data-en="All PS, last 15 days" data-hi="सभी PS, पिछले 15 दिन">सभी PS, पिछले 15 दिन</div></div></div>
   <div id="adminDashboardBody"><div class="empty-state" data-en="Loading…" data-hi="लोड हो रहा है…">लोड हो रहा है…</div></div>
+</div>
+
+<!-- ══ SCREEN: MANAGE PS ══ -->
+<div class="screen" id="screen-manageps">
+  <div class="back-row"><div class="back-ic" onclick="showScreen('settings')">←</div><div><div class="scr-title" data-en="Manage PS" data-hi="PS प्रबंधित करें">PS प्रबंधित करें</div><div class="scr-sub" data-en="Add, edit, or deactivate Pashu Sakhis" data-hi="Pashu Sakhi जोड़ें, बदलें, या निष्क्रिय करें">Pashu Sakhi जोड़ें, बदलें, या निष्क्रिय करें</div></div></div>
+
+  <div class="card">
+    <div class="card-title" data-en="Add new PS" data-hi="नई PS जोड़ें">नई PS जोड़ें</div>
+    <div class="field"><label class="req" data-en="Name" data-hi="नाम">नाम</label><input type="text" id="newPsName" data-ph-en="e.g. Rabia Didi" data-ph-hi="जैसे रबिया दीदी" placeholder="जैसे रबिया दीदी"></div>
+    <div class="field"><label data-en="Phone (optional)" data-hi="फोन (वैकल्पिक)">फोन (वैकल्पिक)</label><input type="tel" id="newPsPhone" data-ph-en="10-digit number" data-ph-hi="10 अंकों का नंबर" placeholder="10 अंकों का नंबर"></div>
+    <div class="field"><label class="req" data-en="Region" data-hi="क्षेत्र">क्षेत्र</label><select id="newPsRegion"></select></div>
+    <button class="btn-primary" onclick="addNewPs()" data-en="Add PS" data-hi="PS जोड़ें">PS जोड़ें</button>
+  </div>
+
+  <div class="card">
+    <div class="card-title" data-en="Existing PS" data-hi="मौजूदा PS">मौजूदा PS</div>
+    <div id="managePsList"><div class="empty-state" data-en="Loading…" data-hi="लोड हो रहा है…">लोड हो रहा है…</div></div>
+  </div>
 </div>
 
 <div class="success-toast" id="toast"></div>
@@ -943,6 +962,7 @@ function showScreen(name) {
   if (name === 'newgoat') prepAddGoat();
   if (name === 'goatdetail') renderGoatDetail();
   if (name === 'admindashboard') renderAdminDashboard();
+  if (name === 'manageps') renderManagePs();
   if (name === 'campcomplete') renderCampCompleteReview();
   if (name === 'settings') renderSettings();
 }
@@ -1578,6 +1598,102 @@ async function renderAdminDashboard() {
       </div>`;
     }).join('') || '<div class="empty-state">' + L('No interested goats yet','अभी कोई इच्छुक पशु नहीं') + '</div>'}
   `;
+}
+
+/* ═══════════════════════ MANAGE PS (admin-only) ═══════════════════════
+   ps_list was previously read-only from the app by design (see schema.sql)
+   — only editable via Supabase's own Table Editor. migrate_v3_6.sql opens
+   insert/update to the app so this screen can work; deactivation still
+   uses the existing `active` flag rather than a real delete, so nothing
+   here is destructive/unrecoverable. */
+let managePsRows = [];
+let editingPsId = null;
+
+async function renderManagePs() {
+  populatePsRegionSelect();
+  const list = document.getElementById('managePsList');
+  list.innerHTML = '<div class="empty-state">' + L('Loading…','लोड हो रहा है…') + '</div>';
+  editingPsId = null;
+  try {
+    const { data, error } = await sb.from('ps_list').select('*').order('name');
+    if (error || !data) { list.innerHTML = '<div class="empty-state">' + L('Could not load — check internet and try again','लोड नहीं हो सका — इंटरनेट जांचें और फिर कोशिश करें') + '</div>'; return; }
+    managePsRows = data;
+    renderManagePsList();
+  } catch (e) {
+    list.innerHTML = '<div class="empty-state">' + L('Could not load — check internet and try again','लोड नहीं हो सका — इंटरनेट जांचें और फिर कोशिश करें') + '</div>';
+  }
+}
+
+function populatePsRegionSelect() {
+  const el = document.getElementById('newPsRegion');
+  const regions = regionsCache.length ? regionsCache : FALLBACK_REGIONS;
+  el.innerHTML = regions.map(r => `<option value="${r}">${r}</option>`).join('');
+}
+
+function renderManagePsList() {
+  const list = document.getElementById('managePsList');
+  if (!managePsRows.length) { list.innerHTML = '<div class="empty-state">' + L('No PS yet','अभी कोई PS नहीं') + '</div>'; return; }
+  list.innerHTML = managePsRows.map(p => {
+    if (p.id === editingPsId) {
+      const regions = regionsCache.length ? regionsCache : FALLBACK_REGIONS;
+      return `<div class="settings-row" style="flex-direction:column; align-items:stretch; gap:8px;">
+        <input type="text" id="editPsName_${p.id}" value="${p.name.replace(/"/g,'&quot;')}" placeholder="${L('Name','नाम')}">
+        <input type="tel" id="editPsPhone_${p.id}" value="${p.phone || ''}" placeholder="${L('Phone','फोन')}">
+        <select id="editPsRegion_${p.id}">${regions.map(r => `<option value="${r}" ${r===p.region?'selected':''}>${r}</option>`).join('')}</select>
+        <div style="display:flex; gap:8px;">
+          <button class="btn-small" onclick="savePsEdit('${p.id}')" data-en="Save" data-hi="सहेजें">सहेजें</button>
+          <button class="btn-small" onclick="cancelEditPs()" data-en="Cancel" data-hi="रद्द करें">रद्द करें</button>
+        </div>
+      </div>`;
+    }
+    return `<div class="settings-row">
+      <div>
+        <div class="settings-label">${p.name} <span class="chip ${p.active?'chip-ready':'chip-norate'}">${p.active?L('Active','सक्रिय'):L('Inactive','निष्क्रिय')}</span></div>
+        <div class="settings-sub">${p.region}${p.phone ? (' · ' + p.phone) : ''}</div>
+      </div>
+      <div style="display:flex; gap:6px;">
+        <button class="btn-small" onclick="startEditPs('${p.id}')" data-en="Edit" data-hi="बदलें">बदलें</button>
+        <button class="btn-small" style="${p.active?'color:var(--red); border-color:var(--red);':''}" onclick="togglePsActiveState('${p.id}', ${!p.active})">${p.active ? L('Deactivate','निष्क्रिय करें') : L('Activate','सक्रिय करें')}</button>
+      </div>
+    </div>`;
+  }).join('');
+}
+
+function startEditPs(id) { editingPsId = id; renderManagePsList(); }
+function cancelEditPs() { editingPsId = null; renderManagePsList(); }
+
+async function savePsEdit(id) {
+  const name = document.getElementById('editPsName_'+id).value.trim();
+  const phone = document.getElementById('editPsPhone_'+id).value.trim();
+  const region = document.getElementById('editPsRegion_'+id).value;
+  if (!name || !region) { showToast(L('⚠️ Name and region are required','⚠️ नाम और क्षेत्र जरूरी हैं'), false); return; }
+  const { error } = await sb.from('ps_list').update({ name, phone: phone || null, region }).eq('id', id);
+  if (error) { showToast(L('⚠️ Could not save — check internet and try again','⚠️ सहेजा नहीं जा सका — इंटरनेट जांचें और फिर कोशिश करें'), false); return; }
+  showToast(L('✓ Saved','✓ सहेजा गया'), true);
+  await refreshPsList(); // so the PS-picker overlay reflects this immediately too
+  await renderManagePs();
+}
+
+async function togglePsActiveState(id, newActive) {
+  const { error } = await sb.from('ps_list').update({ active: newActive }).eq('id', id);
+  if (error) { showToast(L('⚠️ Could not save — check internet and try again','⚠️ सहेजा नहीं जा सका — इंटरनेट जांचें और फिर कोशिश करें'), false); return; }
+  showToast(newActive ? L('✓ Activated','✓ सक्रिय किया गया') : L('✓ Deactivated','✓ निष्क्रिय किया गया'), true);
+  await refreshPsList();
+  await renderManagePs();
+}
+
+async function addNewPs() {
+  const name = document.getElementById('newPsName').value.trim();
+  const phone = document.getElementById('newPsPhone').value.trim();
+  const region = document.getElementById('newPsRegion').value;
+  if (!name || !region) { showToast(L('⚠️ Name and region are required','⚠️ नाम और क्षेत्र जरूरी हैं'), false); return; }
+  const { error } = await sb.from('ps_list').insert({ name, phone: phone || null, region, weight_mode: 'both', active: true });
+  if (error) { showToast(L('⚠️ Could not add — check internet and try again','⚠️ जोड़ा नहीं जा सका — इंटरनेट जांचें और फिर कोशिश करें'), false); return; }
+  document.getElementById('newPsName').value = '';
+  document.getElementById('newPsPhone').value = '';
+  showToast(L('✓ PS added','✓ PS जोड़ी गई'), true);
+  await refreshPsList(); // so the PS-picker overlay shows the new PS immediately too
+  await renderManagePs();
 }
 
 /* ═══════════════════════ ADD GOAT ═══════════════════════ */
