@@ -317,6 +317,7 @@
     <div class="summary-item"><strong id="hdInterestedValue">₹0</strong><span data-en="Interested value" data-hi="इच्छुक मूल्य">इच्छुक मूल्य</span></div>
   </div>
   <div id="goatList"><div class="empty-state" data-en="No animals added yet" data-hi="अभी कोई पशु नहीं जोड़ा गया">अभी कोई पशु नहीं जोड़ा गया</div></div>
+  <button class="btn-secondary" id="btnShareWhatsapp" onclick="shareHouseholdOnWhatsApp()" style="display:none; margin-top:6px;">📲 <span data-en="Share on WhatsApp" data-hi="WhatsApp पर भेजें">WhatsApp पर भेजें</span></button>
   <button class="btn-primary" onclick="showScreen('newgoat')" style="margin-top:6px;">➕ <span data-en="Add animal" data-hi="पशु जोड़ें">पशु जोड़ें</span></button>
 </div>
 
@@ -383,21 +384,21 @@
           <div id="photoPlaceholder1">📷<div class="hint" data-en="Photo 1 (Front)" data-hi="फोटो 1 (सामने)">फोटो 1 (सामने)</div></div>
           <img id="photoPreview1" style="display:none;">
         </div>
-        <input type="file" id="photoInput1" accept="image/*" capture="environment" style="display:none;" onchange="onPhotoSelected(event,1)">
+        <input type="file" id="photoInput1" accept="image/*" style="display:none;" onchange="onPhotoSelected(event,1)">
       </div>
       <div>
         <div class="photo-box photo-box-sm" id="photoBox2" onclick="document.getElementById('photoInput2').click()">
           <div id="photoPlaceholder2">📷<div class="hint" data-en="Photo 2 (Side)" data-hi="फोटो 2 (साइड से)">फोटो 2 (साइड से)</div></div>
           <img id="photoPreview2" style="display:none;">
         </div>
-        <input type="file" id="photoInput2" accept="image/*" capture="environment" style="display:none;" onchange="onPhotoSelected(event,2)">
+        <input type="file" id="photoInput2" accept="image/*" style="display:none;" onchange="onPhotoSelected(event,2)">
       </div>
       <div>
         <div class="photo-box photo-box-sm" id="photoBox3" onclick="document.getElementById('photoInput3').click()">
           <div id="photoPlaceholder3">📷<div class="hint" data-en="Photo 3 (Back)" data-hi="फोटो 3 (पीछे से)">फोटो 3 (पीछे से)</div></div>
           <img id="photoPreview3" style="display:none;">
         </div>
-        <input type="file" id="photoInput3" accept="image/*" capture="environment" style="display:none;" onchange="onPhotoSelected(event,3)">
+        <input type="file" id="photoInput3" accept="image/*" style="display:none;" onchange="onPhotoSelected(event,3)">
       </div>
     </div>
     <div class="ai-quality-row hidden" id="aiQualityRow" style="margin-top:10px;">
@@ -502,15 +503,15 @@
     </div>
   </div>
 
-  <button class="btn-primary" id="btnSaveGoat" onclick="saveGoat()" disabled style="margin-top:12px;">💾 <span data-en="Save" data-hi="सहेजें">सहेजें</span></button>
+  <button class="btn-primary" id="btnSaveGoat" onclick="saveGoat()" disabled style="margin-top:12px;">💾 <span data-en="Save" data-hi="सेव करें">सेव करें</span></button>
 </div>
 
 <!-- ══ SCREEN: CALCULATOR ══ -->
 <div class="screen" id="screen-calc">
   <div class="card">
     <div class="card-title" data-en="Quick calculator" data-hi="त्वरित कैलकुलेटर">त्वरित कैलकुलेटर</div>
-    <div style="font-size:11px;color:var(--grey-500);margin-bottom:12px;" data-en="Not linked to any record - for estimation only" data-hi="किसी रिकॉर्ड से जुड़ा नहीं - सिर्फ अनुमान के लिए">किसी रिकॉर्ड से जुड़ा नहीं - सिर्फ अनुमान के लिए</div>
-    <div class="field"><label class="req" data-en="Region" data-hi="क्षेत्र">क्षेत्र</label><select id="cRegion" onchange="recalcCalc()"></select></div>
+    <div style="font-size:11px;color:var(--grey-500);margin-bottom:4px;" data-en="Not linked to any record - for estimation only" data-hi="किसी रिकॉर्ड से जुड़ा नहीं - सिर्फ अनुमान के लिए">किसी रिकॉर्ड से जुड़ा नहीं - सिर्फ अनुमान के लिए</div>
+    <div style="font-size:11.5px;color:var(--grey-500);margin-bottom:12px;">📍 <span id="calcRegionLabel">—</span></div>
     <div class="field">
       <label class="req" data-en="Male / Female" data-hi="नर / मादा">नर / मादा</label>
       <div class="toggle-group">
@@ -589,6 +590,7 @@
       </div>
       <button class="btn-secondary" style="margin-top:10px;" onclick="showScreen('admindashboard')" data-en="Open admin dashboard" data-hi="Admin dashboard खोलें">Admin dashboard खोलें</button>
       <button class="btn-secondary" style="margin-top:8px;" onclick="showScreen('manageps')" data-en="Manage PS" data-hi="PS प्रबंधित करें">PS प्रबंधित करें</button>
+      <button class="btn-secondary" style="margin-top:8px;" onclick="showScreen('ratecard')" data-en="Update rate card" data-hi="रेट कार्ड अपडेट करें">रेट कार्ड अपडेट करें</button>
     </div>
   </div>
 
@@ -620,7 +622,14 @@
 
 <!-- ══ SCREEN: ADMIN DASHBOARD ══ -->
 <div class="screen" id="screen-admindashboard">
-  <div class="back-row"><div class="back-ic" onclick="showScreen('settings')">←</div><div><div class="scr-title" data-en="Admin dashboard" data-hi="Admin Dashboard">Admin Dashboard</div><div class="scr-sub" data-en="All PS, last 15 days" data-hi="सभी PS, पिछले 15 दिन">सभी PS, पिछले 15 दिन</div></div></div>
+  <div class="back-row"><div class="back-ic" onclick="showScreen('settings')">←</div><div><div class="scr-title" data-en="Admin dashboard" data-hi="Admin Dashboard">Admin Dashboard</div><div class="scr-sub" data-en="Filter by PS and date range" data-hi="PS और तारीख सीमा से फ़िल्टर करें">PS और तारीख सीमा से फ़िल्टर करें</div></div></div>
+  <div class="card" style="margin-bottom:14px;">
+    <div class="field" style="margin-bottom:8px;"><label data-en="PS" data-hi="PS">PS</label><select id="adminFilterPs" onchange="renderAdminDashboard()"><option value="" data-en="All PS" data-hi="सभी PS">सभी PS</option></select></div>
+    <div class="row2">
+      <div class="field" style="margin-bottom:0;"><label data-en="From" data-hi="से">से</label><input type="date" id="adminFilterFrom" onchange="renderAdminDashboard()"></div>
+      <div class="field" style="margin-bottom:0;"><label data-en="To" data-hi="तक">तक</label><input type="date" id="adminFilterTo" onchange="renderAdminDashboard()"></div>
+    </div>
+  </div>
   <div id="adminDashboardBody"><div class="empty-state" data-en="Loading…" data-hi="लोड हो रहा है…">लोड हो रहा है…</div></div>
 </div>
 
@@ -640,6 +649,28 @@
     <div class="card-title" data-en="Existing PS" data-hi="मौजूदा PS">मौजूदा PS</div>
     <div id="managePsList"><div class="empty-state" data-en="Loading…" data-hi="लोड हो रहा है…">लोड हो रहा है…</div></div>
   </div>
+</div>
+
+<!-- ══ SCREEN: UPDATE RATE CARD ══ -->
+<div class="screen" id="screen-ratecard">
+  <div class="back-row"><div class="back-ic" onclick="showScreen('settings')">←</div><div><div class="scr-title" data-en="Update rate card" data-hi="रेट कार्ड अपडेट करें">रेट कार्ड अपडेट करें</div><div class="scr-sub" data-en="Always creates a new version — never overwrites a price already in use" data-hi="हमेशा नया वर्शन बनाता है — इस्तेमाल हो रही कीमत कभी नहीं बदलता">हमेशा नया वर्शन बनाता है — इस्तेमाल हो रही कीमत कभी नहीं बदलता</div></div></div>
+
+  <div class="card">
+    <div class="field" style="margin-bottom:0;"><label class="req" data-en="Region" data-hi="क्षेत्र">क्षेत्र</label><select id="rcRegion" onchange="loadCurrentRateCardForEdit()"></select></div>
+    <div class="settings-sub" id="rcCurrentInfo" style="margin-top:8px;">—</div>
+  </div>
+
+  <div class="card">
+    <div class="card-title" data-en="Buffer (e.g. 0.92)" data-hi="बफर (जैसे 0.92)">बफर (जैसे 0.92)</div>
+    <input type="number" step="0.01" id="rcBuffer" placeholder="0.92">
+  </div>
+
+  <div class="card">
+    <div class="card-title" data-en="Rates per kg (₹) — First / Second / Third quality" data-hi="प्रति किग्रा दर (₹) — पहली / दूसरी / तीसरी क्वालिटी">प्रति किग्रा दर (₹) — पहली / दूसरी / तीसरी क्वालिटी</div>
+    <div id="rcRatesGrid"></div>
+  </div>
+
+  <button class="btn-primary" onclick="saveNewRateCardVersion()" data-en="Save as new version" data-hi="नया वर्शन सेव करें">नया वर्शन सेव करें</button>
 </div>
 
 <div class="success-toast" id="toast"></div>
@@ -957,12 +988,14 @@ function showScreen(name) {
   document.querySelectorAll('.tab').forEach(t => t.classList.toggle('active', t.dataset.tab === name || (name!=='camps' && name!=='calc' && t.dataset.tab==='camps')));
   if (name === 'camps') { renderHome(); refreshCloudData(); }
   if (name === 'newcamp') { document.getElementById('newCampDate').value = new Date().toISOString().slice(0,10); document.getElementById('newRegion').value = ps ? ps.region : ''; }
+  if (name === 'calc') { document.getElementById('calcRegionLabel').textContent = ps ? ps.region : '—'; if (ps && !rateCache[ps.region]) refreshRateCard(ps.region); }
   if (name === 'campdetail') renderCampDetail();
   if (name === 'householddetail') renderHouseholdDetail();
   if (name === 'newgoat') prepAddGoat();
   if (name === 'goatdetail') renderGoatDetail();
   if (name === 'admindashboard') renderAdminDashboard();
   if (name === 'manageps') renderManagePs();
+  if (name === 'ratecard') renderRateCardScreen();
   if (name === 'campcomplete') renderCampCompleteReview();
   if (name === 'settings') renderSettings();
 }
@@ -1033,7 +1066,7 @@ async function refreshRegions() {
 }
 
 function populateRegionSelects() {
-  ['newRegion','cRegion'].forEach(id => {
+  ['newRegion'].forEach(id => {
     const el = document.getElementById(id);
     const current = el.value;
     el.innerHTML = regionsCache.map(r => `<option value="${r}">${r}</option>`).join('');
@@ -1300,6 +1333,7 @@ function renderHouseholdDetail() {
   const value = hGoats.filter(g => g.hh_response === 'interested').reduce((s,g) => s + g.final_price, 0);
   document.getElementById('hdGoatCount').textContent = hGoats.length + (h.expected_goat_count ? (' / ' + h.expected_goat_count) : '');
   document.getElementById('hdInterestedValue').textContent = '₹' + fmtNum(value);
+  document.getElementById('btnShareWhatsapp').style.display = hGoats.some(g => g.hh_response === 'interested') ? 'block' : 'none';
 
   const labels = {
     young_male_small: L('Young male (small)','नर छोटा'),
@@ -1329,6 +1363,35 @@ function renderHouseholdDetail() {
       </div>
     </div>`;
   }).reverse().join(''); // newest goat shown first, but #N numbering stays true chronological order
+}
+
+// Composes a plain-text price summary for a household and opens WhatsApp with
+// it pre-filled — straight to the household's own saved number if there is
+// one (10-digit Indian mobile, so prefixed with 91), otherwise falls back to
+// WhatsApp's own contact picker so the PS can choose who to send it to.
+function shareHouseholdOnWhatsApp() {
+  const h = households.find(x => x.id === currentHouseholdId);
+  if (!h) return;
+  const hGoats = goats.filter(g => g.household_id === h.id && g.hh_response === 'interested')
+    .slice().sort((a,b) => new Date(a.created_at || 0) - new Date(b.created_at || 0));
+  if (!hGoats.length) { showToast(L('⚠️ No interested animals to share yet','⚠️ अभी साझा करने के लिए कोई इच्छुक पशु नहीं'), false); return; }
+
+  const lines = [];
+  lines.push(L('Goat sale price details','पशु बिक्री मूल्य विवरण'));
+  lines.push(h.hh_name);
+  lines.push('—————————');
+  hGoats.forEach((g, i) => {
+    lines.push(`${i+1}. ${categoryLabel(g.category)} · ${g.quality} ${L('quality','क्वालिटी')} · ${Math.round(g.weight_kg)} kg · ₹${fmtNum(g.final_price)}`);
+  });
+  lines.push('—————————');
+  const total = hGoats.reduce((s,g) => s + g.final_price, 0);
+  lines.push(L('Total: ','कुल: ') + '₹' + fmtNum(total));
+  const text = encodeURIComponent(lines.join('\n'));
+
+  const url = (h.mobile && /^\d{10}$/.test(h.mobile))
+    ? `https://wa.me/91${h.mobile}?text=${text}`
+    : `https://wa.me/?text=${text}`;
+  window.open(url, '_blank');
 }
 
 function setGoatResponse(id, resp) {
@@ -1408,7 +1471,7 @@ function renderGoatDetail() {
       status.className = 'we-pending'; status.textContent = L('Not recorded','दर्ज नहीं');
       form.innerHTML = `
         <div class="field"><label>${L('Weight (kg)','वजन (kg)')}</label><input type="number" id="pickupWeight" min="1" max="120" step="0.5" placeholder="जैसे 21.5" oninput="updateShrinkageDisplay()"></div>
-        <button class="btn-amber" onclick="savePickupWeight()">💾 ${L('Save pickup weight','पिकअप वजन सहेजें')}</button>`;
+        <button class="btn-amber" onclick="savePickupWeight()">💾 ${L('Save pickup weight','पिकअप वजन सेव करें')}</button>`;
     }
   }
 
@@ -1429,7 +1492,7 @@ function renderGoatDetail() {
     mandiForm.innerHTML = `
       <div class="field"><label>${L('Weight (kg)','वजन (kg)')}</label><input type="number" id="mandiWeight" min="1" max="120" step="0.5" placeholder="जैसे 20.0" oninput="updateShrinkageDisplay()"></div>
       <div class="field"><label>${L('Sale price (₹)','बिक्री मूल्य (₹)')}</label><input type="number" id="mandiSalePrice" min="0" placeholder="जैसे 7000"></div>
-      <button class="btn-primary" onclick="saveMandiWeight()">💾 ${L('Save mandi weight & price','मंडी वजन और मूल्य सहेजें')}</button>`;
+      <button class="btn-primary" onclick="saveMandiWeight()">💾 ${L('Save mandi weight & price','मंडी वजन और मूल्य सेव करें')}</button>`;
   }
 
   updateShrinkageDisplay();
@@ -1503,12 +1566,13 @@ function updateShrinkageDisplay() {
    the data the rest of the app uses for "my camps". */
 let adminCamps = [], adminHouseholds = [], adminGoats = [];
 
-async function refreshAdminData() {
+async function refreshAdminData(fromStr, toStr) {
   if (!sb) return false;
   try {
-    const cutoff = new Date(); cutoff.setDate(cutoff.getDate() - HISTORY_DAYS);
-    const cutoffStr = cutoff.toISOString().slice(0, 10);
-    const { data: camps_, error } = await sb.from('camps').select('*').gte('camp_date', cutoffStr);
+    let q = sb.from('camps').select('*');
+    if (fromStr) q = q.gte('camp_date', fromStr);
+    if (toStr) q = q.lte('camp_date', toStr);
+    const { data: camps_, error } = await q;
     if (error || !camps_) return false;
     adminCamps = camps_;
     const campIds = adminCamps.map(c => c.id);
@@ -1523,24 +1587,55 @@ async function refreshAdminData() {
   } catch (e) { return false; }
 }
 
+// Populates the PS filter dropdown from the full ps_list (not just PS with
+// camps in the current date range) — otherwise picking a PS then narrowing
+// the date range to a period with 0 camps would make that PS disappear from
+// its own filter. Defaults the date range to the last HISTORY_DAYS days,
+// same as before this filter existed, but the range is now adjustable.
+let adminFiltersInited = false;
+async function initAdminFilters() {
+  const fromEl = document.getElementById('adminFilterFrom'), toEl = document.getElementById('adminFilterTo');
+  if (!fromEl.value) { const cutoff = new Date(); cutoff.setDate(cutoff.getDate() - HISTORY_DAYS); fromEl.value = cutoff.toISOString().slice(0,10); }
+  if (!toEl.value) toEl.value = new Date().toISOString().slice(0,10);
+  if (!adminFiltersInited) {
+    adminFiltersInited = true;
+    const { data } = await sb.from('ps_list').select('name').order('name');
+    const sel = document.getElementById('adminFilterPs');
+    const current = sel.value;
+    sel.innerHTML = '<option value="">' + L('All PS','सभी PS') + '</option>' + (data||[]).map(p => `<option value="${p.name}">${p.name}</option>`).join('');
+    sel.value = current;
+  }
+}
+
 async function renderAdminDashboard() {
   const body = document.getElementById('adminDashboardBody');
+  await initAdminFilters();
+  const filterPs = document.getElementById('adminFilterPs').value;
+  const filterFrom = document.getElementById('adminFilterFrom').value;
+  const filterTo = document.getElementById('adminFilterTo').value;
   body.innerHTML = '<div class="empty-state">' + L('Loading…','लोड हो रहा है…') + '</div>';
-  const ok = await refreshAdminData();
+  const ok = await refreshAdminData(filterFrom, filterTo);
   if (!ok) { body.innerHTML = '<div class="empty-state">' + L('Could not load — check internet and try again','लोड नहीं हो सका — इंटरनेट जांचें और फिर कोशिश करें') + '</div>'; return; }
 
-  const totalHh = adminHouseholds.length;
-  const totalGoats = adminGoats.length;
-  const interestedGoats = adminGoats.filter(g => g.hh_response === 'interested');
+  // PS filter is applied client-side (not re-fetched) so switching PS alone,
+  // without changing the date range, doesn't need a second round-trip.
+  const campsInView = filterPs ? adminCamps.filter(c => c.ps_name === filterPs) : adminCamps;
+  const campIdsInView = new Set(campsInView.map(c => c.id));
+  const hhInView = adminHouseholds.filter(h => campIdsInView.has(h.camp_id));
+  const goatsInView = adminGoats.filter(g => campIdsInView.has(g.camp_id));
+
+  const totalHh = hhInView.length;
+  const totalGoats = goatsInView.length;
+  const interestedGoats = goatsInView.filter(g => g.hh_response === 'interested');
   const interestedValue = interestedGoats.reduce((s,g) => s + g.final_price, 0);
-  const interestedHhIds = new Set(adminGoats.filter(g => g.hh_response === 'interested').map(g => g.household_id));
+  const interestedHhIds = new Set(interestedGoats.map(g => g.household_id));
 
   // Per-PS breakdown — ps_name is stored directly on camps/goats already, no join needed.
-  const psNames = [...new Set(adminCamps.map(c => c.ps_name))].sort();
+  const psNames = [...new Set(campsInView.map(c => c.ps_name))].sort();
   const perPs = psNames.map(name => {
-    const psCampIds = new Set(adminCamps.filter(c => c.ps_name === name).map(c => c.id));
-    const psHh = adminHouseholds.filter(h => psCampIds.has(h.camp_id));
-    const psGoats = adminGoats.filter(g => psCampIds.has(g.camp_id));
+    const psCampIds = new Set(campsInView.filter(c => c.ps_name === name).map(c => c.id));
+    const psHh = hhInView.filter(h => psCampIds.has(h.camp_id));
+    const psGoats = goatsInView.filter(g => psCampIds.has(g.camp_id));
     const psInterestedHhIds = new Set(psGoats.filter(g => g.hh_response === 'interested').map(g => g.household_id));
     return {
       name,
@@ -1552,16 +1647,16 @@ async function renderAdminDashboard() {
     };
   });
 
-  // Flattened, tappable list of every interested goat across every PS — this
-  // is the actual way in to record pickup/mandi weight for a goat that isn't
-  // your own. The per-PS cards above are read-only totals; this is where you act.
+  // Flattened, tappable list of every interested goat in view — this is the
+  // actual way in to record pickup/mandi weight for a goat that isn't your
+  // own. The per-PS cards above are read-only totals; this is where you act.
   const hhById = {}; adminHouseholds.forEach(h => hhById[h.id] = h);
   const campById = {}; adminCamps.forEach(c => campById[c.id] = c);
   const catLabelsAdmin = { young_male_small: L('Small male','नर छोटा'), young_male_regular: L('Regular male','नर सामान्य'), young_male_body: L('Large male','नर बड़ा'), old_female: L('Old female','पुरानी मादा') };
 
   body.innerHTML = `
     <div class="table-summary" style="margin-bottom:14px;">
-      <div class="summary-item"><strong>${adminCamps.length}</strong><span>${L('Camps','शिविर')}</span></div>
+      <div class="summary-item"><strong>${campsInView.length}</strong><span>${L('Camps','शिविर')}</span></div>
       <div class="summary-item"><strong>${totalHh}</strong><span>${L('Households','घर')}</span></div>
       <div class="summary-item"><strong>${totalGoats}</strong><span>${L('Goats','पशु')}</span></div>
       <div class="summary-item"><strong>${interestedHhIds.size}</strong><span>${L('Interested HH','इच्छुक घर')}</span></div>
@@ -1576,7 +1671,7 @@ async function renderAdminDashboard() {
           <div><div class="list-card-stat-label">${L('Goats','पशु')}</div><div class="list-card-stat-value">${p.goats}</div></div>
         </div>
         <div style="margin-top:8px; font-size:12.5px; color:var(--grey-500);">${L('Interested value','इच्छुक मूल्य')}: <strong style="color:var(--green-dark);">₹${fmtNum(p.interestedValue)}</strong></div>
-      </div>`).join('') || '<div class="empty-state">' + L('No camps in the last 15 days','पिछले 15 दिनों में कोई शिविर नहीं') + '</div>'}
+      </div>`).join('') || '<div class="empty-state">' + L('No camps in this range','इस सीमा में कोई शिविर नहीं') + '</div>'}
 
     <div class="card-title" style="margin-top:18px;" data-en="Interested goats — tap to record pickup/mandi weight" data-hi="इच्छुक पशु — पिकअप/मंडी वजन दर्ज करने के लिए टैप करें">इच्छुक पशु — पिकअप/मंडी वजन दर्ज करने के लिए टैप करें</div>
     ${interestedGoats.map(g => {
@@ -1584,7 +1679,7 @@ async function renderAdminDashboard() {
       const pickupDone = !!g.collection_weight_kg, mandiDone = !!g.mandi_weight_kg;
       return `<div class="goat-row" onclick="openGoatDetail('${g.id}', true)">
         <div class="goat-row-top">
-          <div class="goat-thumb">🐐</div>
+          <div class="goat-thumb">${g.photo_url_1 ? `<img src="${g.photo_url_1}" alt="" style="width:100%;height:100%;object-fit:cover;">` : '🐐'}</div>
           <div class="goat-info">
             <div class="gname">${hh?hh.hh_name:'—'} · ${catLabelsAdmin[g.category]||g.category}</div>
             <div class="gmeta">${camp?(camp.village_name+' · '+camp.ps_name):''} · ₹${fmtNum(g.final_price)}</div>
@@ -1641,7 +1736,7 @@ function renderManagePsList() {
         <input type="tel" id="editPsPhone_${p.id}" value="${p.phone || ''}" placeholder="${L('Phone','फोन')}">
         <select id="editPsRegion_${p.id}">${regions.map(r => `<option value="${r}" ${r===p.region?'selected':''}>${r}</option>`).join('')}</select>
         <div style="display:flex; gap:8px;">
-          <button class="btn-small" onclick="savePsEdit('${p.id}')" data-en="Save" data-hi="सहेजें">सहेजें</button>
+          <button class="btn-small" onclick="savePsEdit('${p.id}')" data-en="Save" data-hi="सेव करें">सेव करें</button>
           <button class="btn-small" onclick="cancelEditPs()" data-en="Cancel" data-hi="रद्द करें">रद्द करें</button>
         </div>
       </div>`;
@@ -1667,6 +1762,7 @@ async function savePsEdit(id) {
   const phone = document.getElementById('editPsPhone_'+id).value.trim();
   const region = document.getElementById('editPsRegion_'+id).value;
   if (!name || !region) { showToast(L('⚠️ Name and region are required','⚠️ नाम और क्षेत्र जरूरी हैं'), false); return; }
+  if (phone && !/^\d{10}$/.test(phone)) { showToast(L('⚠️ Phone number must be exactly 10 digits','⚠️ फोन नंबर ठीक 10 अंकों का होना चाहिए'), false); return; }
   const { error } = await sb.from('ps_list').update({ name, phone: phone || null, region }).eq('id', id);
   if (error) { showToast(L('⚠️ Could not save — check internet and try again','⚠️ सहेजा नहीं जा सका — इंटरनेट जांचें और फिर कोशिश करें'), false); return; }
   showToast(L('✓ Saved','✓ सहेजा गया'), true);
@@ -1687,6 +1783,7 @@ async function addNewPs() {
   const phone = document.getElementById('newPsPhone').value.trim();
   const region = document.getElementById('newPsRegion').value;
   if (!name || !region) { showToast(L('⚠️ Name and region are required','⚠️ नाम और क्षेत्र जरूरी हैं'), false); return; }
+  if (phone && !/^\d{10}$/.test(phone)) { showToast(L('⚠️ Phone number must be exactly 10 digits','⚠️ फोन नंबर ठीक 10 अंकों का होना चाहिए'), false); return; }
   const { error } = await sb.from('ps_list').insert({ name, phone: phone || null, region, weight_mode: 'both', active: true });
   if (error) { showToast(L('⚠️ Could not add — check internet and try again','⚠️ जोड़ा नहीं जा सका — इंटरनेट जांचें और फिर कोशिश करें'), false); return; }
   document.getElementById('newPsName').value = '';
@@ -1694,6 +1791,82 @@ async function addNewPs() {
   showToast(L('✓ PS added','✓ PS जोड़ी गई'), true);
   await refreshPsList(); // so the PS-picker overlay shows the new PS immediately too
   await renderManagePs();
+}
+
+/* ═══════════════════════ UPDATE RATE CARD (admin-only) ═══════════════════════
+   rate_cards/rate_card_lines were previously read-only from the app by
+   design — see schema.sql. migrate_v3_7.sql adds an INSERT-only policy
+   (deliberately no update/delete) so this screen can only ever add a new
+   version, never change a price a camp is already using — computeQuote()
+   already prefers whichever row has the most recent effective_from, so a
+   freshly inserted row just naturally becomes the active one going forward. */
+const RATE_CATEGORIES = ['young_male_small','young_male_regular','young_male_body','old_female'];
+const RATE_QUALITIES = ['1st','2nd','3rd'];
+
+async function renderRateCardScreen() {
+  const sel = document.getElementById('rcRegion');
+  if (!sel.options.length) {
+    const regions = regionsCache.length ? regionsCache : FALLBACK_REGIONS;
+    sel.innerHTML = regions.map(r => `<option value="${r}">${r}</option>`).join('');
+  }
+  const grid = document.getElementById('rcRatesGrid');
+  if (!grid.dataset.built) {
+    grid.innerHTML = RATE_CATEGORIES.map(cat => `
+      <div class="field">
+        <label>${categoryLabel(cat)}</label>
+        <div class="row3">
+          ${RATE_QUALITIES.map(q => `<input type="number" id="rcRate_${cat}_${q}" placeholder="${q}">`).join('')}
+        </div>
+      </div>`).join('');
+    grid.dataset.built = '1';
+  }
+  await loadCurrentRateCardForEdit();
+}
+
+async function loadCurrentRateCardForEdit() {
+  const region = document.getElementById('rcRegion').value;
+  const info = document.getElementById('rcCurrentInfo');
+  info.textContent = L('Loading current rates…','मौजूदा दरें लोड हो रही हैं…');
+  delete rateCache[region]; // always fetch fresh here, not whatever this phone happened to cache earlier
+  const card = await refreshRateCard(region);
+  if (!card) {
+    info.textContent = L('No current rate card for this region yet — enter fresh rates below.','इस क्षेत्र के लिए अभी कोई रेट कार्ड नहीं — नीचे नई दरें भरें।');
+    document.getElementById('rcBuffer').value = '0.92';
+    RATE_CATEGORIES.forEach(cat => RATE_QUALITIES.forEach(q => document.getElementById(`rcRate_${cat}_${q}`).value = ''));
+    return;
+  }
+  info.textContent = L('Current: version ','मौजूदा: वर्शन ') + card.version + L(' — editing will create version ', ' — बदलने पर वर्शन ') + (card.version + 1) + L(' instead',' बनेगा');
+  document.getElementById('rcBuffer').value = card.buffer;
+  RATE_CATEGORIES.forEach(cat => RATE_QUALITIES.forEach(q => {
+    const val = card.lines[cat + '|' + q];
+    document.getElementById(`rcRate_${cat}_${q}`).value = (val != null) ? val : '';
+  }));
+}
+
+async function saveNewRateCardVersion() {
+  const region = document.getElementById('rcRegion').value;
+  const buffer = parseFloat(document.getElementById('rcBuffer').value);
+  if (!region || !buffer || buffer <= 0) { showToast(L('⚠️ Enter a valid buffer','⚠️ मान्य बफर भरें'), false); return; }
+  const rates = {};
+  for (const cat of RATE_CATEGORIES) {
+    for (const q of RATE_QUALITIES) {
+      const v = parseFloat(document.getElementById(`rcRate_${cat}_${q}`).value);
+      if (!v || v <= 0) { showToast(L('⚠️ Fill in all 12 rates','⚠️ सभी 12 दरें भरें'), false); return; }
+      rates[cat + '|' + q] = v;
+    }
+  }
+  const { data: existing } = await sb.from('rate_cards').select('version').eq('region', region).order('version', { ascending: false }).limit(1);
+  const nextVersion = (existing && existing.length) ? existing[0].version + 1 : 1;
+  const today = new Date().toISOString().slice(0,10);
+  const { data: newCard, error } = await sb.from('rate_cards').insert({ region, version: nextVersion, effective_from: today, buffer, is_active: true }).select().single();
+  if (error || !newCard) { showToast(L('⚠️ Could not save — check internet and try again','⚠️ सहेजा नहीं जा सका — इंटरनेट जांचें और फिर कोशिश करें'), false); return; }
+  const lineRows = [];
+  for (const cat of RATE_CATEGORIES) for (const q of RATE_QUALITIES) lineRows.push({ rate_card_id: newCard.id, category: cat, quality: q, rate_per_kg: rates[cat+'|'+q] });
+  const { error: lineErr } = await sb.from('rate_card_lines').insert(lineRows);
+  if (lineErr) { showToast(L('⚠️ Version created but rates failed to save — try again or check Table Editor','⚠️ वर्शन बना पर दरें सेव नहीं हुईं — फिर कोशिश करें या Table Editor देखें'), false); return; }
+  delete rateCache[region];
+  showToast(L('✓ New rate card version ' + nextVersion + ' saved','✓ नया रेट कार्ड वर्शन ' + nextVersion + ' सेव हुआ'), true);
+  await loadCurrentRateCardForEdit();
 }
 
 /* ═══════════════════════ ADD GOAT ═══════════════════════ */
@@ -2379,7 +2552,7 @@ function recalcQuickCalc() {
 function setCalcSex(v) { calcSex = v; document.getElementById('cBtnMale').className='toggle-btn'+(v==='male'?' sel':''); document.getElementById('cBtnFemale').className='toggle-btn'+(v==='female'?' sel-female':''); recalcCalc(); }
 
 async function recalcCalc() {
-  const region = document.getElementById('cRegion').value;
+  const region = ps ? ps.region : null;
   const teeth = document.getElementById('cTeeth').value;
   const quality = document.getElementById('cQuality').value;
   const weight = parseFloat(document.getElementById('cWeight').value);
