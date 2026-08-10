@@ -1515,7 +1515,14 @@ function renderGoatDetail() {
   document.getElementById('gdSub').textContent = (CATEGORY_LABELS_GD[g.category] && CATEGORY_LABELS_GD[g.category][lang]) || g.category;
 
   const respLabels = { interested: L('Interested','इच्छुक'), awaited: L('Awaited decision','सोच रहे'), not_interested: L('Not interested','अनिच्छुक') };
-  let infoHtml = `
+  const photoUrls = [g.photo_url_1, g.photo_url_2, g.photo_url_3].filter(Boolean);
+  let infoHtml = '';
+  if (photoUrls.length) {
+    infoHtml += `<div class="row3" style="gap:8px; margin-bottom:12px;">
+      ${photoUrls.map(url => `<a href="${url}" target="_blank" style="display:block; aspect-ratio:1; border-radius:8px; overflow:hidden; background:var(--grey-100);"><img src="${url}" alt="" style="width:100%; height:100%; object-fit:cover;"></a>`).join('')}
+    </div>`;
+  }
+  infoHtml += `
     <div class="row2" style="gap:12px;">
       <div><div style="font-size:11px;color:var(--grey-500);">${L('Sex','लिंग')}</div><div style="font-weight:600;">${g.sex==='male'?('🐐 '+L('Male','नर')):('🐑 '+L('Female','मादा'))}</div></div>
       <div><div style="font-size:11px;color:var(--grey-500);">${L('Teeth','दांत')}</div><div style="font-weight:600;">${g.teeth}</div></div>
@@ -1639,6 +1646,7 @@ function updateShrinkageDisplay() {
    this view spans every PS, so it must never get mixed into (or overwrite)
    the data the rest of the app uses for "my camps". */
 let adminCamps = [], adminHouseholds = [], adminGoats = [];
+let adminViewInterestedGoats = [], adminViewHhById = {}, adminViewCampById = {}, adminViewFilterLabel = '';
 
 async function refreshAdminData(fromStr, toStr) {
   if (!sb) return false;
@@ -1728,6 +1736,14 @@ async function renderAdminDashboard() {
   const campById = {}; adminCamps.forEach(c => campById[c.id] = c);
   const catLabelsAdmin = { young_male_small: L('Small male','नर छोटा'), young_male_regular: L('Regular male','नर सामान्य'), young_male_body: L('Large male','नर बड़ा'), old_female: L('Old female','पुरानी मादा') };
 
+  // Stashed so shareAdminInterestedListOnWhatsApp()/downloadAdminInterestedList()
+  // can build the same list the admin is currently looking at (respecting the
+  // PS + date filters above) without recomputing it themselves.
+  adminViewInterestedGoats = interestedGoats;
+  adminViewHhById = hhById;
+  adminViewCampById = campById;
+  adminViewFilterLabel = (filterPs || L('All PS','सभी PS')) + ' · ' + filterFrom + ' → ' + filterTo;
+
   body.innerHTML = `
     <div class="table-summary" style="margin-bottom:14px;">
       <div class="summary-item"><strong>${campsInView.length}</strong><span>${L('Camps','शिविर')}</span></div>
@@ -1736,6 +1752,11 @@ async function renderAdminDashboard() {
       <div class="summary-item"><strong>${interestedHhIds.size}</strong><span>${L('Interested HH','इच्छुक घर')}</span></div>
       <div class="summary-item"><strong>₹${fmtNum(interestedValue)}</strong><span>${L('Interested value','इच्छुक मूल्य')}</span></div>
     </div>
+    ${interestedGoats.length ? `
+    <div class="row2" style="gap:8px; margin-bottom:14px;">
+      <button class="btn-secondary" onclick="shareAdminInterestedListOnWhatsApp()">📲 <span data-en="Share list" data-hi="सूची भेजें">सूची भेजें</span></button>
+      <button class="btn-secondary" onclick="downloadAdminInterestedList()">⬇️ <span data-en="Download list" data-hi="सूची डाउनलोड करें">सूची डाउनलोड करें</span></button>
+    </div>` : ''}
     ${perPs.map(p => `
       <div class="list-card">
         <div class="list-card-top"><div class="list-card-name">${p.name}</div><span class="chip chip-ready">${p.camps} ${L('camps','शिविर')}</span></div>
@@ -1767,6 +1788,63 @@ async function renderAdminDashboard() {
       </div>`;
     }).join('') || '<div class="empty-state">' + L('No interested goats yet','अभी कोई इच्छुक पशु नहीं') + '</div>'}
   `;
+}
+
+// Same idea as buildCampInterestedListText() but for whatever the admin
+// dashboard's PS + date filters currently show — can span many camps and
+// PSes at once, so each household is grouped under its camp/village.
+function buildAdminInterestedListText() {
+  if (!adminViewInterestedGoats.length) return null;
+  const byCamp = {};
+  adminViewInterestedGoats.forEach(g => {
+    (byCamp[g.camp_id] = byCamp[g.camp_id] || []).push(g);
+  });
+  const lines = [];
+  lines.push(L('Interested households — ','इच्छुक घर — ') + adminViewFilterLabel);
+  lines.push('═════════════════');
+  let grandTotal = 0, hhCount = 0;
+  Object.keys(byCamp).forEach(campId => {
+    const camp = adminViewCampById[campId];
+    const goatsInCamp = byCamp[campId];
+    const byHh = {};
+    goatsInCamp.forEach(g => (byHh[g.household_id] = byHh[g.household_id] || []).push(g));
+    lines.push(`${camp ? camp.village_name + ' · ' + camp.ps_name + ' · ' + camp.camp_date : ''}`);
+    Object.keys(byHh).forEach(hhId => {
+      const hh = adminViewHhById[hhId];
+      hhCount++;
+      lines.push(`  ${hh ? hh.hh_name : '—'}${hh?.mobile ? ' · ' + hh.mobile : ''}`);
+      let hhTotal = 0;
+      byHh[hhId].forEach((g, i) => {
+        lines.push(`     ${i+1}. ${categoryLabel(g.category)} · ${g.quality||''} ${L('quality','क्वालिटी')} · ${Math.round(g.weight_kg)} kg · ₹${fmtNum(g.final_price)}`);
+        hhTotal += g.final_price;
+      });
+      lines.push('     ' + L('Subtotal: ','उप-योग: ') + '₹' + fmtNum(hhTotal));
+      grandTotal += hhTotal;
+    });
+    lines.push('—————————');
+  });
+  lines.push(L('Total (', 'कुल (') + hhCount + L(' households): ',' घर): ') + '₹' + fmtNum(grandTotal));
+  return lines.join('\n');
+}
+
+function shareAdminInterestedListOnWhatsApp() {
+  const text = buildAdminInterestedListText();
+  if (!text) { showToast(L('⚠️ No interested households to share yet','⚠️ अभी साझा करने के लिए कोई इच्छुक घर नहीं'), false); return; }
+  window.open(`https://wa.me/?text=${encodeURIComponent(text)}`, '_blank');
+}
+
+function downloadAdminInterestedList() {
+  const text = buildAdminInterestedListText();
+  if (!text) { showToast(L('⚠️ No interested households to download yet','⚠️ अभी डाउनलोड करने के लिए कोई इच्छुक घर नहीं'), false); return; }
+  const blob = new Blob([text], { type: 'text/plain' });
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement('a');
+  a.href = url;
+  a.download = `interested-households-${new Date().toISOString().slice(0,10)}.txt`;
+  document.body.appendChild(a);
+  a.click();
+  document.body.removeChild(a);
+  URL.revokeObjectURL(url);
 }
 
 /* ═══════════════════════ MANAGE PS (admin-only) ═══════════════════════
