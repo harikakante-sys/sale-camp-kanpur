@@ -657,8 +657,17 @@
 
   <div class="card">
     <div class="field" style="margin-bottom:0;"><label class="req" data-en="Region" data-hi="क्षेत्र">क्षेत्र</label><select id="rcRegion" onchange="loadCurrentRateCardForEdit()"></select></div>
-    <div class="settings-sub" id="rcCurrentInfo" style="margin-top:8px;">—</div>
   </div>
+
+  <div class="card" style="border:2px solid var(--green-light); background:var(--green-pale);">
+    <div style="display:flex; align-items:center; gap:8px; margin-bottom:10px;">
+      <span class="chip chip-ready" id="rcActiveBadge">वर्शन —</span>
+      <span style="font-size:12px; color:var(--grey-700);" data-en="currently active — this is what's pricing goats right now" data-hi="अभी सक्रिय — अभी पशुओं की कीमत इससे तय हो रही है">अभी सक्रिय — अभी पशुओं की कीमत इससे तय हो रही है</span>
+    </div>
+    <div id="rcActiveRatesSummary" style="font-size:12.5px; color:var(--grey-700); line-height:1.7;">—</div>
+  </div>
+
+  <div class="card-title" style="margin:4px 0 -6px 4px;" data-en="Create a new version" data-hi="नया वर्शन बनाएं">नया वर्शन बनाएं</div>
 
   <div class="card">
     <div class="card-title" data-en="Buffer (e.g. 0.92)" data-hi="बफर (जैसे 0.92)">बफर (जैसे 0.92)</div>
@@ -1825,17 +1834,24 @@ async function renderRateCardScreen() {
 
 async function loadCurrentRateCardForEdit() {
   const region = document.getElementById('rcRegion').value;
-  const info = document.getElementById('rcCurrentInfo');
-  info.textContent = L('Loading current rates…','मौजूदा दरें लोड हो रही हैं…');
+  const badge = document.getElementById('rcActiveBadge');
+  const summary = document.getElementById('rcActiveRatesSummary');
+  badge.textContent = L('Loading…','लोड हो रहा है…');
+  summary.textContent = '';
   delete rateCache[region]; // always fetch fresh here, not whatever this phone happened to cache earlier
   const card = await refreshRateCard(region);
   if (!card) {
-    info.textContent = L('No current rate card for this region yet — enter fresh rates below.','इस क्षेत्र के लिए अभी कोई रेट कार्ड नहीं — नीचे नई दरें भरें।');
+    badge.textContent = L('No active version','कोई सक्रिय वर्शन नहीं');
+    summary.textContent = L('No current rate card for this region yet — enter fresh rates below to create version 1.','इस क्षेत्र के लिए अभी कोई रेट कार्ड नहीं — वर्शन 1 बनाने के लिए नीचे दरें भरें।');
     document.getElementById('rcBuffer').value = '0.92';
     RATE_CATEGORIES.forEach(cat => RATE_QUALITIES.forEach(q => document.getElementById(`rcRate_${cat}_${q}`).value = ''));
     return;
   }
-  info.textContent = L('Current: version ','मौजूदा: वर्शन ') + card.version + L(' — editing will create version ', ' — बदलने पर वर्शन ') + (card.version + 1) + L(' instead',' बनेगा');
+  badge.textContent = L('Version ','वर्शन ') + card.version;
+  summary.innerHTML = RATE_CATEGORIES.map(cat => {
+    const rates = RATE_QUALITIES.map(q => card.lines[cat + '|' + q]);
+    return `<div><strong>${categoryLabel(cat)}:</strong> ${rates.map((r,i) => (r != null ? '₹'+r : '—') + ' ('+RATE_QUALITIES[i]+')').join(' · ')}</div>`;
+  }).join('') + `<div style="margin-top:6px;">${L('Buffer: ','बफर: ')}${card.buffer}</div>`;
   document.getElementById('rcBuffer').value = card.buffer;
   RATE_CATEGORIES.forEach(cat => RATE_QUALITIES.forEach(q => {
     const val = card.lines[cat + '|' + q];
