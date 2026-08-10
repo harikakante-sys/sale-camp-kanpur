@@ -276,6 +276,10 @@
     <div class="summary-item"><strong id="cdInterestedValue">₹0</strong><span data-en="Interested value" data-hi="इच्छुक मूल्य">इच्छुक मूल्य</span></div>
   </div>
   <div id="hhList"><div class="empty-state" data-en="No households added yet" data-hi="अभी कोई घर नहीं जोड़ा गया">अभी कोई घर नहीं जोड़ा गया</div></div>
+  <div id="cdInterestedListActions" style="display:none; gap:8px;" class="row2">
+    <button class="btn-secondary" onclick="shareInterestedListOnWhatsApp()">📲 <span data-en="Share list" data-hi="सूची भेजें">सूची भेजें</span></button>
+    <button class="btn-secondary" onclick="downloadInterestedList()">⬇️ <span data-en="Download list" data-hi="सूची डाउनलोड करें">सूची डाउनलोड करें</span></button>
+  </div>
   <button class="btn-primary" id="cdAddHhBtn" onclick="showScreen('newhousehold')" style="margin-top:6px;">➕ <span data-en="Add household" data-hi="घर जोड़ें">घर जोड़ें</span></button>
   <button class="btn-secondary" id="cdCompleteCampBtn" onclick="showScreen('campcomplete')">✅ <span data-en="Complete camp" data-hi="शिविर पूरा करें">शिविर पूरा करें</span></button>
 </div>
@@ -653,21 +657,24 @@
 
 <!-- ══ SCREEN: UPDATE RATE CARD ══ -->
 <div class="screen" id="screen-ratecard">
-  <div class="back-row"><div class="back-ic" onclick="showScreen('settings')">←</div><div><div class="scr-title" data-en="Update rate card" data-hi="रेट कार्ड अपडेट करें">रेट कार्ड अपडेट करें</div><div class="scr-sub" data-en="Always creates a new version — never overwrites a price already in use" data-hi="हमेशा नया वर्शन बनाता है — इस्तेमाल हो रही कीमत कभी नहीं बदलता">हमेशा नया वर्शन बनाता है — इस्तेमाल हो रही कीमत कभी नहीं बदलता</div></div></div>
+  <div class="back-row"><div class="back-ic" onclick="showScreen('settings')">←</div><div><div class="scr-title" data-en="Update rate card" data-hi="रेट कार्ड अपडेट करें">रेट कार्ड अपडेट करें</div><div class="scr-sub" data-en="Updates the price immediately for all regions — there's no older version to fall back to" data-hi="सभी क्षेत्रों के लिए कीमत तुरंत बदल जाती है — पुराने रेट पर वापस जाने का कोई तरीका नहीं है">सभी क्षेत्रों के लिए कीमत तुरंत बदल जाती है — पुराने रेट पर वापस जाने का कोई तरीका नहीं है</div></div></div>
 
   <div class="card">
-    <div class="field" style="margin-bottom:0;"><label class="req" data-en="Region" data-hi="क्षेत्र">क्षेत्र</label><select id="rcRegion" onchange="loadCurrentRateCardForEdit()"></select></div>
+    <div class="field" style="margin-bottom:0;"><label class="req" data-en="Region (to view its current rates)" data-hi="क्षेत्र (मौजूदा दरें देखने के लिए)">क्षेत्र (मौजूदा दरें देखने के लिए)</label><select id="rcRegion" onchange="loadCurrentRateCardForEdit()"></select></div>
   </div>
 
   <div class="card" style="border:2px solid var(--green-light); background:var(--green-pale);">
     <div style="display:flex; align-items:center; gap:8px; margin-bottom:10px;">
-      <span class="chip chip-ready" id="rcActiveBadge">वर्शन —</span>
-      <span style="font-size:12px; color:var(--grey-700);" data-en="currently active — this is what's pricing goats right now" data-hi="अभी सक्रिय — अभी पशुओं की कीमत इससे तय हो रही है">अभी सक्रिय — अभी पशुओं की कीमत इससे तय हो रही है</span>
+      <span class="chip chip-ready" id="rcActiveBadge">—</span>
+      <span style="font-size:12px; color:var(--grey-700);" data-en="this is what's pricing goats right now" data-hi="अभी पशुओं की कीमत इससे तय हो रही है">अभी पशुओं की कीमत इससे तय हो रही है</span>
     </div>
     <div id="rcActiveRatesSummary" style="font-size:12.5px; color:var(--grey-700); line-height:1.7;">—</div>
   </div>
 
-  <div class="card-title" style="margin:4px 0 -6px 4px;" data-en="Create a new version" data-hi="नया वर्शन बनाएं">नया वर्शन बनाएं</div>
+  <div class="card-title" style="margin:4px 0 -6px 4px;" data-en="Update the rates" data-hi="दरें अपडेट करें">दरें अपडेट करें</div>
+  <div class="card" style="background:var(--amber-pale, #fff8e6); border:1px solid var(--amber);">
+    <div style="font-size:12.5px; color:var(--grey-700);" data-en="⚠️ The rates below will replace the current price for ALL regions (Sarwankhera, Akbarpur, Amraudha) right away, not just the one selected above. Goats already saved keep their old price." data-hi="⚠️ नीचे भरी गई दरें अभी सभी क्षेत्रों (सरवनखेड़ा, अकबरपुर, अमरौधा) की मौजूदा कीमत बदल देंगी — केवल ऊपर चुने क्षेत्र पर नहीं। जो पशु पहले सेव हो चुके हैं उनकी कीमत नहीं बदलेगी।">⚠️ नीचे भरी गई दरें अभी सभी क्षेत्रों (सरवनखेड़ा, अकबरपुर, अमरौधा) की मौजूदा कीमत बदल देंगी — केवल ऊपर चुने क्षेत्र पर नहीं। जो पशु पहले सेव हो चुके हैं उनकी कीमत नहीं बदलेगी।</div>
+  </div>
 
   <div class="card">
     <div class="card-title" data-en="Buffer (e.g. 0.92)" data-hi="बफर (जैसे 0.92)">बफर (जैसे 0.92)</div>
@@ -679,7 +686,7 @@
     <div id="rcRatesGrid"></div>
   </div>
 
-  <button class="btn-primary" onclick="saveNewRateCardVersion()" data-en="Save as new version" data-hi="नया वर्शन सेव करें">नया वर्शन सेव करें</button>
+  <button class="btn-primary" onclick="saveNewRateCardVersion()" data-en="Update price for all regions" data-hi="सभी क्षेत्रों के लिए कीमत अपडेट करें">सभी क्षेत्रों के लिए कीमत अपडेट करें</button>
 </div>
 
 <div class="success-toast" id="toast"></div>
@@ -1096,7 +1103,7 @@ async function refreshRateCard(region) {
     const { data: lines } = await sb.from('rate_card_lines').select('category, quality, rate_per_kg').eq('rate_card_id', valid.id);
     const lineMap = {};
     (lines || []).forEach(l => { lineMap[l.category + '|' + l.quality] = l.rate_per_kg; });
-    const combined = { version: valid.version, buffer: valid.buffer, lines: lineMap, fetched_at: new Date().toISOString() };
+    const combined = { version: valid.version, effective_from: valid.effective_from, buffer: valid.buffer, lines: lineMap, fetched_at: new Date().toISOString() };
     rateCache[region] = combined;
     store.set('sc_rate_cache', rateCache);
     return combined;
@@ -1222,7 +1229,7 @@ function renderCampDetail() {
   document.getElementById('cdMeta').textContent = c.region + ' · ' + c.camp_date + ' · ' + weightModeLabel(c.weight_mode);
   const rc = rateCache[c.region];
   const statusEl = document.getElementById('cdRateStatus');
-  if (rc) { statusEl.className = 'rate-status ok'; statusEl.textContent = '✓ ' + L('Rate card v','रेट कार्ड v') + rc.version + ' ' + L('ready','तैयार'); }
+  if (rc) { statusEl.className = 'rate-status ok'; statusEl.textContent = '✓ ' + L('Rate card ready','रेट कार्ड तैयार'); }
   else { statusEl.className = 'rate-status bad'; statusEl.textContent = L('⚠️ No rate card available for this region','⚠️ इस क्षेत्र के लिए रेट कार्ड उपलब्ध नहीं है'); refreshRateCard(c.region).then(renderCampDetail); }
 
   const hhs = households.filter(h => h.camp_id === c.id);
@@ -1231,6 +1238,7 @@ function renderCampDetail() {
   document.getElementById('cdHhCount').textContent = hhs.length;
   document.getElementById('cdGoatCount').textContent = gs.length;
   document.getElementById('cdInterestedValue').textContent = '₹' + fmtNum(interestedValue);
+  document.getElementById('cdInterestedListActions').style.display = gs.some(g => g.hh_response === 'interested') ? 'flex' : 'none';
 
   const isCompleted = c.status === 'completed';
   document.getElementById('cdCompletedStatus').style.display = isCompleted ? 'flex' : 'none';
@@ -1401,6 +1409,63 @@ function shareHouseholdOnWhatsApp() {
     ? `https://wa.me/91${h.mobile}?text=${text}`
     : `https://wa.me/?text=${text}`;
   window.open(url, '_blank');
+}
+
+// Builds the same kind of plain-text summary as shareHouseholdOnWhatsApp(),
+// but for every interested household in the current camp at once — this is
+// the aggregate view for whoever is coordinating pickup across a whole camp,
+// not any single household's own phone.
+function buildCampInterestedListText() {
+  const c = camps.find(x => x.id === currentCampId);
+  if (!c) return null;
+  const hhs = households.filter(h => h.camp_id === c.id);
+  const gsByHh = {};
+  hhs.forEach(h => {
+    const interested = goats.filter(g => g.household_id === h.id && g.hh_response === 'interested')
+      .slice().sort((a,b) => new Date(a.created_at || 0) - new Date(b.created_at || 0));
+    if (interested.length) gsByHh[h.id] = interested;
+  });
+  const interestedHhs = hhs.filter(h => gsByHh[h.id]);
+  if (!interestedHhs.length) return null;
+
+  const lines = [];
+  lines.push(L('Interested households — ','इच्छुक घर — ') + c.village_name + ' · ' + c.camp_date);
+  lines.push('═════════════════');
+  let grandTotal = 0;
+  interestedHhs.forEach((h, hi) => {
+    lines.push(`${hi+1}. ${h.hh_name}${h.mobile ? ' · ' + h.mobile : ''}`);
+    let hhTotal = 0;
+    gsByHh[h.id].forEach((g, i) => {
+      lines.push(`   ${i+1}. ${categoryLabel(g.category)} · ${g.quality} ${L('quality','क्वालिटी')} · ${Math.round(g.weight_kg)} kg · ₹${fmtNum(g.final_price)}`);
+      hhTotal += g.final_price;
+    });
+    lines.push('   ' + L('Subtotal: ','उप-योग: ') + '₹' + fmtNum(hhTotal));
+    lines.push('—————————');
+    grandTotal += hhTotal;
+  });
+  lines.push(L('Total (', 'कुल (') + interestedHhs.length + L(' households): ',' घर): ') + '₹' + fmtNum(grandTotal));
+  return lines.join('\n');
+}
+
+function shareInterestedListOnWhatsApp() {
+  const text = buildCampInterestedListText();
+  if (!text) { showToast(L('⚠️ No interested households to share yet','⚠️ अभी साझा करने के लिए कोई इच्छुक घर नहीं'), false); return; }
+  window.open(`https://wa.me/?text=${encodeURIComponent(text)}`, '_blank');
+}
+
+function downloadInterestedList() {
+  const text = buildCampInterestedListText();
+  if (!text) { showToast(L('⚠️ No interested households to download yet','⚠️ अभी डाउनलोड करने के लिए कोई इच्छुक घर नहीं'), false); return; }
+  const c = camps.find(x => x.id === currentCampId);
+  const blob = new Blob([text], { type: 'text/plain' });
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement('a');
+  a.href = url;
+  a.download = `interested-${(c.village_name||'camp').replace(/[^a-zA-Z0-9]+/g,'-')}-${c.camp_date}.txt`;
+  document.body.appendChild(a);
+  a.click();
+  document.body.removeChild(a);
+  URL.revokeObjectURL(url);
 }
 
 function setGoatResponse(id, resp) {
@@ -1841,13 +1906,13 @@ async function loadCurrentRateCardForEdit() {
   delete rateCache[region]; // always fetch fresh here, not whatever this phone happened to cache earlier
   const card = await refreshRateCard(region);
   if (!card) {
-    badge.textContent = L('No active version','कोई सक्रिय वर्शन नहीं');
-    summary.textContent = L('No current rate card for this region yet — enter fresh rates below to create version 1.','इस क्षेत्र के लिए अभी कोई रेट कार्ड नहीं — वर्शन 1 बनाने के लिए नीचे दरें भरें।');
+    badge.textContent = L('Not set up yet','अभी सेट नहीं है');
+    summary.textContent = L('No rate card for this region yet — enter fresh rates below and save.','इस क्षेत्र के लिए अभी कोई रेट कार्ड नहीं — नीचे दरें भरें और सेव करें।');
     document.getElementById('rcBuffer').value = '0.92';
     RATE_CATEGORIES.forEach(cat => RATE_QUALITIES.forEach(q => document.getElementById(`rcRate_${cat}_${q}`).value = ''));
     return;
   }
-  badge.textContent = L('Version ','वर्शन ') + card.version;
+  badge.textContent = L('Version ','वर्शन ') + card.version + ' · ' + card.effective_from;
   summary.innerHTML = RATE_CATEGORIES.map(cat => {
     const rates = RATE_QUALITIES.map(q => card.lines[cat + '|' + q]);
     return `<div><strong>${categoryLabel(cat)}:</strong> ${rates.map((r,i) => (r != null ? '₹'+r : '—') + ' ('+RATE_QUALITIES[i]+')').join(' · ')}</div>`;
@@ -1859,10 +1924,23 @@ async function loadCurrentRateCardForEdit() {
   }));
 }
 
+// Every region has exactly one rate_cards row (see migrate_v3_8.sql —
+// a unique constraint on region enforces this at the database level).
+// Saving here UPSERTs that one row per region — updating it in place
+// for every region at once — instead of ever inserting a new one.
+// "version" is now a single shared counter across all 3 regions (not
+// a per-region history) — every save bumps it by 1 and stamps that
+// SAME number onto all 3 regions together, so "version 2" always
+// means the same rate-setting moment everywhere, never one region
+// ahead of the others. This has no version history beyond the number
+// itself: whatever you enter here becomes the price immediately, for
+// all 3 regions, no going back to an older rate card. Goats already
+// saved are unaffected either way, since each goat locks in its own
+// rate_per_kg/buffer/final_price at the moment it's saved (see the
+// goats table) — this only changes the price for animals not yet priced.
 async function saveNewRateCardVersion() {
-  const region = document.getElementById('rcRegion').value;
   const buffer = parseFloat(document.getElementById('rcBuffer').value);
-  if (!region || !buffer || buffer <= 0) { showToast(L('⚠️ Enter a valid buffer','⚠️ मान्य बफर भरें'), false); return; }
+  if (!buffer || buffer <= 0) { showToast(L('⚠️ Enter a valid buffer','⚠️ मान्य बफर भरें'), false); return; }
   const rates = {};
   for (const cat of RATE_CATEGORIES) {
     for (const q of RATE_QUALITIES) {
@@ -1871,17 +1949,26 @@ async function saveNewRateCardVersion() {
       rates[cat + '|' + q] = v;
     }
   }
-  const { data: existing } = await sb.from('rate_cards').select('version').eq('region', region).order('version', { ascending: false }).limit(1);
-  const nextVersion = (existing && existing.length) ? existing[0].version + 1 : 1;
+  const regions = regionsCache.length ? regionsCache : FALLBACK_REGIONS;
   const today = new Date().toISOString().slice(0,10);
-  const { data: newCard, error } = await sb.from('rate_cards').insert({ region, version: nextVersion, effective_from: today, buffer, is_active: true }).select().single();
-  if (error || !newCard) { showToast(L('⚠️ Could not save — check internet and try again','⚠️ सहेजा नहीं जा सका — इंटरनेट जांचें और फिर कोशिश करें'), false); return; }
-  const lineRows = [];
-  for (const cat of RATE_CATEGORIES) for (const q of RATE_QUALITIES) lineRows.push({ rate_card_id: newCard.id, category: cat, quality: q, rate_per_kg: rates[cat+'|'+q] });
-  const { error: lineErr } = await sb.from('rate_card_lines').insert(lineRows);
-  if (lineErr) { showToast(L('⚠️ Version created but rates failed to save — try again or check Table Editor','⚠️ वर्शन बना पर दरें सेव नहीं हुईं — फिर कोशिश करें या Table Editor देखें'), false); return; }
-  delete rateCache[region];
-  showToast(L('✓ New rate card version ' + nextVersion + ' saved','✓ नया रेट कार्ड वर्शन ' + nextVersion + ' सेव हुआ'), true);
+
+  // One shared version number for this save, applied to every region —
+  // the highest version any region currently has, plus 1.
+  const { data: existingVersions } = await sb.from('rate_cards').select('version').order('version', { ascending: false }).limit(1);
+  const nextVersion = (existingVersions && existingVersions.length) ? existingVersions[0].version + 1 : 1;
+
+  for (const region of regions) {
+    const { data: card, error } = await sb.from('rate_cards')
+      .upsert({ region, version: nextVersion, effective_from: today, buffer, is_active: true }, { onConflict: 'region' })
+      .select().single();
+    if (error || !card) { showToast(L('⚠️ Could not save for ' + region + ' — check internet and try again','⚠️ ' + region + ' के लिए सेव नहीं हो सका — इंटरनेट जांचें और फिर कोशिश करें'), false); return; }
+    const lineRows = [];
+    for (const cat of RATE_CATEGORIES) for (const q of RATE_QUALITIES) lineRows.push({ rate_card_id: card.id, category: cat, quality: q, rate_per_kg: rates[cat+'|'+q] });
+    const { error: lineErr } = await sb.from('rate_card_lines').upsert(lineRows, { onConflict: 'rate_card_id,category,quality' });
+    if (lineErr) { showToast(L('⚠️ Saved for ' + region + ' but rates failed — check Table Editor','⚠️ ' + region + ' के लिए सेव हुआ पर दरें नहीं — Table Editor देखें'), false); return; }
+    delete rateCache[region];
+  }
+  showToast(L('✓ Version ' + nextVersion + ' saved for all regions', '✓ वर्शन ' + nextVersion + ' सभी क्षेत्रों के लिए सेव हुआ'), true);
   await loadCurrentRateCardForEdit();
 }
 
