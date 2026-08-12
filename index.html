@@ -691,8 +691,8 @@
   </div>
 
   <div class="card">
-    <div class="card-title" data-en="Buffer (e.g. 0.92)" data-hi="बफर (जैसे 0.92)">बफर (जैसे 0.92)</div>
-    <input type="number" step="0.01" id="rcBuffer" placeholder="0.92">
+    <div class="card-title" data-en="Buffer (e.g. 0.95)" data-hi="बफर (जैसे 0.95)">बफर (जैसे 0.95)</div>
+    <input type="number" step="0.01" id="rcBuffer" placeholder="0.95">
   </div>
 
   <div class="card">
@@ -823,10 +823,16 @@ function L(en, hi) { return lang === 'en' ? en : hi; }
 const CATEGORY_LABELS = {
   young_male_small:   { hi: 'नर - छोटा (<17 kg)', en: 'Young male - small (<17 kg)' },
   young_male_regular: { hi: 'नर - सामान्य (17-26 kg)', en: 'Young male - regular (17-26 kg)' },
-  young_male_body:    { hi: 'नर - बड़ा (>26 kg)', en: 'Young male - large (>26 kg)' },
-  old_female:         { hi: 'पुरानी मादा (4-8 दांत)', en: 'Old female (4-8 teeth)' }
+  old_female:         { hi: 'पुरानी मादा (6-8 दांत)', en: 'Old female (6-8 teeth)' }
 };
 function categoryLabel(key) { return (CATEGORY_LABELS[key] && CATEGORY_LABELS[key][lang]) || key; }
+// Same as categoryLabel(), plus a visible flag for a goat priced at the
+// regular rate but outside the normal weight band (see pricing.js classify()
+// — a >26kg male, updated 2026-08-12: there's no separate "body" category
+// anymore, this one still prices as regular, just documented as out of range).
+function categoryLabelFlagged(key, outOfRange) {
+  return categoryLabel(key) + (outOfRange ? ' ⚠️ ' + L('(out of range)','(आउट ऑफ रेंज)') : '');
+}
 function fmtNum(n) { return n.toLocaleString(lang === 'en' ? 'en-IN' : 'hi-IN'); }
 
 function setLang(l) { lang = l; store.set('sc_lang', lang); applyLang(); }
@@ -1389,14 +1395,8 @@ function renderHouseholdDetail() {
   const value = hGoats.filter(g => g.hh_response === 'interested').reduce((s,g) => s + g.final_price, 0);
   document.getElementById('hdGoatCount').textContent = hGoats.length + (h.expected_goat_count ? (' / ' + h.expected_goat_count) : '');
   document.getElementById('hdInterestedValue').textContent = '₹' + fmtNum(value);
-  document.getElementById('btnShareWhatsapp').style.display = hGoats.some(g => g.hh_response === 'interested') ? 'block' : 'none';
+  document.getElementById('btnShareWhatsapp').style.display = hGoats.length ? 'block' : 'none';
 
-  const labels = {
-    young_male_small: L('Young male (small)','नर छोटा'),
-    young_male_regular: L('Young male (regular)','नर सामान्य'),
-    young_male_body: L('Young male (large)','नर बड़ा'),
-    old_female: L('Old female','पुरानी मादा')
-  };
   const el = document.getElementById('goatList');
   if (!hGoats.length) { el.innerHTML = '<div class="empty-state">' + L('No animals added yet','अभी कोई पशु नहीं जोड़ा गया') + '</div>'; return; }
   // #1, #2... reflects true add-order regardless of which way the list is
@@ -1407,7 +1407,7 @@ function renderHouseholdDetail() {
       <div class="goat-row-top">
         <div class="goat-thumb">${(g.photos_taken > 0) ? '📷' : '🐐'}</div>
         <div class="goat-info">
-          <div class="gname">#${i+1} · ${labels[g.category]||g.category} · ${Math.round(g.weight_kg)} kg</div>
+          <div class="gname">#${i+1} · ${categoryLabelFlagged(g.category, g.weight_out_of_range)} · ${Math.round(g.weight_kg)} kg</div>
           <div class="gmeta">${g.quality} ${L('quality','क्वालिटी')} · ₹${fmtNum(g.final_price)}${timeLabel ? (' · '+timeLabel) : ''}</div>
         </div>
         <div style="font-size:18px; color:var(--grey-300);">›</div>
@@ -1428,20 +1428,24 @@ function renderHouseholdDetail() {
 function shareHouseholdOnWhatsApp() {
   const h = households.find(x => x.id === currentHouseholdId);
   if (!h) return;
-  const hGoats = goats.filter(g => g.household_id === h.id && g.hh_response === 'interested')
+  // Available regardless of response now — a household still deciding, or
+  // one that declined, can still be sent what was recorded/offered. Only
+  // the "Total" at the bottom counts goats actually marked Interested.
+  const hGoats = goats.filter(g => g.household_id === h.id)
     .slice().sort((a,b) => new Date(a.created_at || 0) - new Date(b.created_at || 0));
-  if (!hGoats.length) { showToast(L('⚠️ No interested animals to share yet','⚠️ अभी साझा करने के लिए कोई इच्छुक पशु नहीं'), false); return; }
+  if (!hGoats.length) { showToast(L('⚠️ No animals added yet','⚠️ अभी कोई पशु नहीं जोड़ा गया'), false); return; }
 
+  const respLabelsWa = { interested: L('Interested','इच्छुक'), awaited: L('Awaited decision','सोच रहे'), not_interested: L('Not interested','अनिच्छुक') };
   const lines = [];
   lines.push(L('Goat sale price details','पशु बिक्री मूल्य विवरण'));
   lines.push(h.hh_name);
   lines.push('—————————');
   hGoats.forEach((g, i) => {
-    lines.push(`${i+1}. ${categoryLabel(g.category)} · ${g.quality} ${L('quality','क्वालिटी')} · ${Math.round(g.weight_kg)} kg · ₹${fmtNum(g.final_price)}`);
+    lines.push(`${i+1}. ${categoryLabelFlagged(g.category, g.weight_out_of_range)} · ${g.quality} ${L('quality','क्वालिटी')} · ${Math.round(g.weight_kg)} kg · ₹${fmtNum(g.final_price)} · ${respLabelsWa[g.hh_response]||g.hh_response}`);
   });
   lines.push('—————————');
-  const total = hGoats.reduce((s,g) => s + g.final_price, 0);
-  lines.push(L('Total: ','कुल: ') + '₹' + fmtNum(total));
+  const total = hGoats.filter(g => g.hh_response === 'interested').reduce((s,g) => s + g.final_price, 0);
+  lines.push(L('Total (Interested): ','कुल (इच्छुक): ') + '₹' + fmtNum(total));
   const text = encodeURIComponent(lines.join('\n'));
 
   const url = (h.mobile && /^\d{10}$/.test(h.mobile))
@@ -1475,7 +1479,7 @@ function buildCampInterestedListText() {
     lines.push(`${hi+1}. ${h.hh_name}${h.mobile ? ' · ' + h.mobile : ''}`);
     let hhTotal = 0;
     gsByHh[h.id].forEach((g, i) => {
-      lines.push(`   ${i+1}. ${categoryLabel(g.category)} · ${g.quality} ${L('quality','क्वालिटी')} · ${Math.round(g.weight_kg)} kg · ₹${fmtNum(g.final_price)}`);
+      lines.push(`   ${i+1}. ${categoryLabelFlagged(g.category, g.weight_out_of_range)} · ${g.quality} ${L('quality','क्वालिटी')} · ${Math.round(g.weight_kg)} kg · ₹${fmtNum(g.final_price)}`);
       hhTotal += g.final_price;
     });
     lines.push('   ' + L('Subtotal: ','उप-योग: ') + '₹' + fmtNum(hhTotal));
@@ -1538,7 +1542,7 @@ function downloadCampHouseholdsCsv() {
       hGoats.forEach((g, i) => {
         rows.push([
           c.village_name, c.camp_date, c.ps_name, h.hh_name, h.mobile||'', h.expected_goat_count||'',
-          i+1, categoryLabel(g.category), g.quality||'', Math.round(g.weight_kg), g.final_price,
+          i+1, categoryLabelFlagged(g.category, g.weight_out_of_range), g.quality||'', Math.round(g.weight_kg), g.final_price,
           RESP_LABELS_CSV[g.hh_response] || g.hh_response,
           g.collection_weight_kg ?? '', g.mandi_weight_kg ?? '', g.mandi_sale_price ?? ''
         ]);
@@ -1590,18 +1594,12 @@ function openGoatDetail(id, fromAdmin) {
   showScreen('goatdetail');
 }
 
-const CATEGORY_LABELS_GD = {
-  young_male_small: { hi: 'नर - छोटा', en: 'Young male - small' },
-  young_male_regular: { hi: 'नर - सामान्य', en: 'Young male - regular' },
-  young_male_body: { hi: 'नर - बड़ा', en: 'Young male - large' },
-  old_female: { hi: 'पुरानी मादा', en: 'Old female' }
-};
 
 function renderGoatDetail() {
   document.getElementById('gdBackBtn').setAttribute('onclick', "showScreen('" + (openedGoatFromAdmin ? 'admindashboard' : 'householddetail') + "')");
   const g = findGoatAnywhere(currentGoatId);
   if (!g) { showScreen(openedGoatFromAdmin ? 'admindashboard' : 'householddetail'); return; }
-  document.getElementById('gdSub').textContent = (CATEGORY_LABELS_GD[g.category] && CATEGORY_LABELS_GD[g.category][lang]) || g.category;
+  document.getElementById('gdSub').textContent = categoryLabelFlagged(g.category, g.weight_out_of_range);
 
   const respLabels = { interested: L('Interested','इच्छुक'), awaited: L('Awaited decision','सोच रहे'), not_interested: L('Not interested','अनिच्छुक') };
   const photoUrls = [g.photo_url_1, g.photo_url_2, g.photo_url_3].filter(Boolean);
@@ -1831,7 +1829,6 @@ async function renderAdminDashboard() {
   // own. The per-PS cards above are read-only totals; this is where you act.
   const hhById = {}; adminHouseholds.forEach(h => hhById[h.id] = h);
   const campById = {}; adminCamps.forEach(c => campById[c.id] = c);
-  const catLabelsAdmin = { young_male_small: L('Small male','नर छोटा'), young_male_regular: L('Regular male','नर सामान्य'), young_male_body: L('Large male','नर बड़ा'), old_female: L('Old female','पुरानी मादा') };
 
   // Stashed so shareAdminInterestedListOnWhatsApp()/downloadAdminInterestedList()
   // can build the same list the admin is currently looking at (respecting the
@@ -1876,7 +1873,7 @@ async function renderAdminDashboard() {
         <div class="goat-row-top">
           <div class="goat-thumb">${g.photo_url_1 ? `<img src="${g.photo_url_1}" alt="" style="width:100%;height:100%;object-fit:cover;">` : '🐐'}</div>
           <div class="goat-info">
-            <div class="gname">${hh?hh.hh_name:'—'} · ${catLabelsAdmin[g.category]||g.category}</div>
+            <div class="gname">${hh?hh.hh_name:'—'} · ${categoryLabelFlagged(g.category, g.weight_out_of_range)}</div>
             <div class="gmeta">${camp?(camp.village_name+' · '+camp.ps_name):''} · ₹${fmtNum(g.final_price)}</div>
           </div>
           <div style="font-size:18px; color:var(--grey-300);">›</div>
@@ -1934,7 +1931,7 @@ function buildAdminInterestedListText() {
       lines.push(`  ${hh ? hh.hh_name : '—'}${hh?.mobile ? ' · ' + hh.mobile : ''}`);
       let hhTotal = 0;
       byHh[hhId].forEach((g, i) => {
-        lines.push(`     ${i+1}. ${categoryLabel(g.category)} · ${g.quality||''} ${L('quality','क्वालिटी')} · ${Math.round(g.weight_kg)} kg · ₹${fmtNum(g.final_price)} · ${respLabelsText[g.hh_response]||g.hh_response}`);
+        lines.push(`     ${i+1}. ${categoryLabelFlagged(g.category, g.weight_out_of_range)} · ${g.quality||''} ${L('quality','क्वालिटी')} · ${Math.round(g.weight_kg)} kg · ₹${fmtNum(g.final_price)} · ${respLabelsText[g.hh_response]||g.hh_response}`);
         hhTotal += g.final_price;
       });
       lines.push('     ' + L('Subtotal: ','उप-योग: ') + '₹' + fmtNum(hhTotal));
@@ -2080,7 +2077,7 @@ async function addNewPs() {
    version, never change a price a camp is already using — computeQuote()
    already prefers whichever row has the most recent effective_from, so a
    freshly inserted row just naturally becomes the active one going forward. */
-const RATE_CATEGORIES = ['young_male_small','young_male_regular','young_male_body','old_female'];
+const RATE_CATEGORIES = ['young_male_small','young_male_regular','old_female'];
 const RATE_QUALITIES = ['1st','2nd','3rd'];
 
 async function renderRateCardScreen() {
@@ -2114,7 +2111,7 @@ async function loadCurrentRateCardForEdit() {
   if (!card) {
     badge.textContent = L('Not set up yet','अभी सेट नहीं है');
     summary.textContent = L('No rate card for this region yet — enter fresh rates below and save.','इस क्षेत्र के लिए अभी कोई रेट कार्ड नहीं — नीचे दरें भरें और सेव करें।');
-    document.getElementById('rcBuffer').value = '0.92';
+    document.getElementById('rcBuffer').value = '0.95';
     RATE_CATEGORIES.forEach(cat => RATE_QUALITIES.forEach(q => document.getElementById(`rcRate_${cat}_${q}`).value = ''));
     return;
   }
@@ -2329,7 +2326,7 @@ function renderPriceCard(prefix, weight, quote) {
     return false;
   }
   card.classList.remove('ineligible');
-  catEl.textContent = categoryLabel(quote.category.key);
+  catEl.textContent = categoryLabelFlagged(quote.category.key, quote.category.outOfRange);
   priceEl.textContent = '₹' + fmtNum(quote.finalPrice);
   return true;
 }
@@ -2784,6 +2781,7 @@ async function saveGoat() {
     paunch_girth: parseFloat(document.getElementById('gPg5').value) || null,
     ai_quality_suggested: aiSuggestedQuality || null,
     category: quote.category.key, rate_per_kg: quote.rate, buffer: quote.buffer, final_price: quote.finalPrice,
+    weight_out_of_range: !!quote.category.outOfRange,
     hh_response: response, photos_taken: photosTaken, ps_name: ps.name,
     created_at: new Date().toISOString(), updated_at: new Date().toISOString()
   };
@@ -2813,7 +2811,7 @@ function showGoatSavedOverlay(quote) {
 function renderGoatSavedOverlay() {
   if (!lastSavedQuote) return;
   document.getElementById('goatSavedTitle').textContent = '₹' + fmtNum(lastSavedQuote.finalPrice);
-  document.getElementById('goatSavedSub').textContent = categoryLabel(lastSavedQuote.category.key);
+  document.getElementById('goatSavedSub').textContent = categoryLabelFlagged(lastSavedQuote.category.key, lastSavedQuote.category.outOfRange);
 }
 function continueAddingGoats() {
   document.getElementById('goatSavedOverlay').style.display = 'none';
@@ -2866,7 +2864,7 @@ function recalcQuickCalc() {
   if (!c || !quickCalcSex || !teeth || !quality || !weight) return;
   const quote = computeQuote(c.region, quickCalcSex, teeth, weight, quality);
   if (!quote.eligible || quote.noRateCard) { warn.classList.add('show'); return; }
-  document.getElementById('qcCat').textContent = categoryLabel(quote.category.key);
+  document.getElementById('qcCat').textContent = categoryLabelFlagged(quote.category.key, quote.category.outOfRange);
   document.getElementById('qcFinal').textContent = '₹' + fmtNum(quote.finalPrice);
   result.classList.add('show');
 }
@@ -2886,7 +2884,7 @@ async function recalcCalc() {
   const quote = computeQuote(region, calcSex, teeth, weight, quality);
   if (!quote.eligible) { warn.textContent = L('⚠️ This animal doesn\'t fall in our purchase category.','⚠️ यह पशु हमारी खरीद श्रेणी में नहीं आता।'); warn.classList.add('show'); return; }
   if (quote.noRateCard) { warn.textContent = L('⚠️ No rate card is available for this region.','⚠️ इस क्षेत्र के लिए रेट कार्ड उपलब्ध नहीं है।'); warn.classList.add('show'); return; }
-  document.getElementById('cCat').textContent = categoryLabel(quote.category.key);
+  document.getElementById('cCat').textContent = categoryLabelFlagged(quote.category.key, quote.category.outOfRange);
   document.getElementById('cFinal').textContent = '₹' + fmtNum(quote.finalPrice);
   result.classList.add('show');
 }

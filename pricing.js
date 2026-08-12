@@ -12,20 +12,24 @@
    ═══════════════════════════════════════════════════════════════ */
 
 // Which purchase category (if any) a goat falls into, from sex + teeth + weight.
-// Business rule (confirmed by the product owner): ONLY young males (milk or
-// 2 permanent teeth) and old females (4, 6, or 8 teeth) are ever purchased.
-// A 4-teeth female prices identically to a 6/8-teeth female (same category,
-// same rate) — 4-teeth males and anything else still return null (not eligible).
+// Business rule (confirmed by the product owner, updated 2026-08-12): ONLY
+// young males (milk or 2 permanent teeth) and old females (6 or 8 teeth —
+// 4-teeth females are no longer purchased) are ever purchased. There is no
+// longer a separate "large/body" male category — a male over 26kg is still
+// documented and priced (at the regular/medium rate, so it never needs its
+// own rate card entry), just flagged outOfRange so it's visible in records
+// that its actual weight was outside the normal medium band. 4-teeth females
+// and anything else still return null (not eligible).
 function classify(sexVal, teethStr, weight) {
   const t = parseInt(teethStr, 10), w = parseFloat(weight);
   if (isNaN(t) || isNaN(w) || !sexVal) return null;
   if (sexVal === 'male' && (t === 0 || t === 2)) {
     if (w < 17) return { key: 'young_male_small', label: 'नर - छोटा (<17 kg)' };
     if (w <= 26) return { key: 'young_male_regular', label: 'नर - सामान्य (17-26 kg)' };
-    return { key: 'young_male_body', label: 'नर - बड़ा/Body (>26 kg)' };
+    return { key: 'young_male_regular', label: 'नर - सामान्य (>26 kg)', outOfRange: true };
   }
-  if (sexVal === 'female' && (t === 4 || t === 6 || t === 8)) {
-    return { key: 'old_female', label: 'पुरानी मादा (4-8 दांत)' };
+  if (sexVal === 'female' && (t === 6 || t === 8)) {
+    return { key: 'old_female', label: 'पुरानी मादा (6-8 दांत)' };
   }
   return null;
 }
