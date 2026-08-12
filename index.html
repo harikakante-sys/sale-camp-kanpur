@@ -280,6 +280,7 @@
     <button class="btn-secondary" onclick="shareInterestedListOnWhatsApp()">📲 <span data-en="Share list" data-hi="सूची भेजें">सूची भेजें</span></button>
     <button class="btn-secondary" onclick="downloadInterestedList()">⬇️ <span data-en="Download list" data-hi="सूची डाउनलोड करें">सूची डाउनलोड करें</span></button>
   </div>
+  <button class="btn-secondary" id="cdDownloadAllBtn" style="display:none; margin-top:8px;" onclick="downloadCampHouseholdsCsv()">📊 <span data-en="Download all households (CSV)" data-hi="सभी घर डाउनलोड करें (CSV)">सभी घर डाउनलोड करें (CSV)</span></button>
   <button class="btn-primary" id="cdAddHhBtn" onclick="showScreen('newhousehold')" style="margin-top:6px;">➕ <span data-en="Add household" data-hi="घर जोड़ें">घर जोड़ें</span></button>
   <button class="btn-secondary" id="cdCompleteCampBtn" onclick="showScreen('campcomplete')">✅ <span data-en="Complete camp" data-hi="शिविर पूरा करें">शिविर पूरा करें</span></button>
 </div>
@@ -595,6 +596,15 @@
       <button class="btn-secondary" style="margin-top:10px;" onclick="showScreen('admindashboard')" data-en="Open admin dashboard" data-hi="Admin dashboard खोलें">Admin dashboard खोलें</button>
       <button class="btn-secondary" style="margin-top:8px;" onclick="showScreen('manageps')" data-en="Manage PS" data-hi="PS प्रबंधित करें">PS प्रबंधित करें</button>
       <button class="btn-secondary" style="margin-top:8px;" onclick="showScreen('ratecard')" data-en="Update rate card" data-hi="रेट कार्ड अपडेट करें">रेट कार्ड अपडेट करें</button>
+      <div class="field" style="margin-top:14px;">
+        <label data-en="Price shown on goat form" data-hi="पशु फॉर्म पर कौन सी कीमत दिखे">पशु फॉर्म पर कौन सी कीमत दिखे</label>
+        <select id="settingsPriceDisplay" onchange="saveAppPriceDisplay()">
+          <option value="both" data-en="Both (PS picks one)" data-hi="दोनों (PS एक चुनेगी)">दोनों (PS एक चुनेगी)</option>
+          <option value="scale_only" data-en="Weighing-machine only" data-hi="केवल तराजू">केवल तराजू</option>
+          <option value="formula_only" data-en="Formula only" data-hi="केवल फॉर्मूला">केवल फॉर्मूला</option>
+        </select>
+        <div style="font-size:11px; color:var(--grey-500); margin-top:4px;" data-en="Applies to every PS immediately — not just this phone" data-hi="तुरंत सभी PS पर लागू होता है — सिर्फ इस फोन पर नहीं">तुरंत सभी PS पर लागू होता है — सिर्फ इस फोन पर नहीं</div>
+      </div>
     </div>
   </div>
 
@@ -633,6 +643,10 @@
       <div class="field" style="margin-bottom:0;"><label data-en="From" data-hi="से">से</label><input type="date" id="adminFilterFrom" onchange="renderAdminDashboard()"></div>
       <div class="field" style="margin-bottom:0;"><label data-en="To" data-hi="तक">तक</label><input type="date" id="adminFilterTo" onchange="renderAdminDashboard()"></div>
     </div>
+    <div class="field" style="margin-bottom:0; margin-top:8px;"><label data-en="Show" data-hi="देखें">देखें</label><select id="adminFilterView" onchange="renderAdminDashboard()">
+      <option value="interested" data-en="Households who said yes" data-hi="इच्छुक घर (हाँ कहा)">इच्छुक घर (हाँ कहा)</option>
+      <option value="all" data-en="All households" data-hi="सभी घर">सभी घर</option>
+    </select></div>
   </div>
   <div id="adminDashboardBody"><div class="empty-state" data-en="Loading…" data-hi="लोड हो रहा है…">लोड हो रहा है…</div></div>
 </div>
@@ -856,6 +870,7 @@ let goats = store.get('sc_goats', []);
 let pending = store.get('sc_pending', []);
 let rateCache = store.get('sc_rate_cache', {});
 let regionsCache = store.get('sc_regions_cache', []);
+let appSettings = store.get('sc_app_settings', { price_display: 'both' });
 
 let sex = null, response = null;
 let currentCampId = null, currentHouseholdId = null, currentGoatId = null;
@@ -896,6 +911,7 @@ window.onload = async () => {
   loadWeightModel();
   await refreshPsList();
   await refreshRegions();
+  await refreshAppSettings();
   populateRegionSelects();
   renderPsOverlay();
   // If a PS is already selected on this phone, re-sync her weight_mode/
@@ -1033,6 +1049,16 @@ function renderSettings() {
   else failedRow.style.display = 'none';
   document.getElementById('adminLockedBox').style.display = isAdmin ? 'none' : 'block';
   document.getElementById('adminUnlockedBox').style.display = isAdmin ? 'block' : 'none';
+  if (isAdmin) document.getElementById('settingsPriceDisplay').value = appSettings.price_display;
+}
+
+async function saveAppPriceDisplay() {
+  const value = document.getElementById('settingsPriceDisplay').value;
+  const { error } = await sb.from('app_settings').update({ price_display: value, updated_at: new Date().toISOString() }).eq('id', 1);
+  if (error) { showToast(L('⚠️ Could not save — check internet and try again','⚠️ सहेजा नहीं जा सका — इंटरनेट जांचें और फिर कोशिश करें'), false); document.getElementById('settingsPriceDisplay').value = appSettings.price_display; return; }
+  appSettings = { ...appSettings, price_display: value };
+  store.set('sc_app_settings', appSettings);
+  showToast(L('✓ Saved — applies to every PS now','✓ सेव हुआ — अभी सभी PS पर लागू'), true);
 }
 
 function unlockAdmin() {
@@ -1079,6 +1105,18 @@ async function refreshRegions() {
     } catch (e) {}
   }
   if (!regionsCache.length) regionsCache = FALLBACK_REGIONS;
+}
+
+// One shared, admin-controlled setting for which price(s) the goat form
+// shows (see migrate_v3_9.sql). Re-fetched on every load, same as ps_list/
+// rate cards, so an admin's change reaches an already-signed-in phone
+// without her having to do anything on that phone.
+async function refreshAppSettings() {
+  if (!sb) return;
+  try {
+    const { data, error } = await sb.from('app_settings').select('price_display').eq('id', 1).single();
+    if (!error && data) { appSettings = data; store.set('sc_app_settings', appSettings); }
+  } catch (e) {}
 }
 
 function populateRegionSelects() {
@@ -1239,6 +1277,7 @@ function renderCampDetail() {
   document.getElementById('cdGoatCount').textContent = gs.length;
   document.getElementById('cdInterestedValue').textContent = '₹' + fmtNum(interestedValue);
   document.getElementById('cdInterestedListActions').style.display = gs.some(g => g.hh_response === 'interested') ? 'flex' : 'none';
+  document.getElementById('cdDownloadAllBtn').style.display = hhs.length ? 'block' : 'none';
 
   const isCompleted = c.status === 'completed';
   document.getElementById('cdCompletedStatus').style.display = isCompleted ? 'flex' : 'none';
@@ -1468,6 +1507,56 @@ function downloadInterestedList() {
   URL.revokeObjectURL(url);
 }
 
+// CSV field escaping — wraps in quotes and doubles any internal quotes,
+// which is all standard CSV needs; Excel opens this directly with no
+// extra library required.
+function csvCell(val) {
+  const s = (val == null ? '' : String(val));
+  return /[",\n]/.test(s) ? '"' + s.replace(/"/g, '""') + '"' : s;
+}
+
+const RESP_LABELS_CSV = { interested: 'Interested / इच्छुक', awaited: 'Awaited / सोच रहे', not_interested: 'Not interested / अनिच्छुक' };
+
+// One row per goat, plus one row for any household with zero goats added
+// yet — this is "every household in the camp", not just the interested
+// ones (that's what buildCampInterestedListText() is for). A flat table
+// like this is what's actually useful to filter/sort in Excel, rather
+// than the grouped text format used for the WhatsApp share.
+function downloadCampHouseholdsCsv() {
+  const c = camps.find(x => x.id === currentCampId);
+  if (!c) return;
+  const hhs = households.filter(h => h.camp_id === c.id);
+  if (!hhs.length) { showToast(L('⚠️ No households in this camp yet','⚠️ इस शिविर में अभी कोई घर नहीं'), false); return; }
+
+  const header = ['Village','Camp date','PS name','Household name','Mobile','Expected goats','Goat #','Category','Quality','Weight (kg)','Price (₹)','Response','Pickup weight (kg)','Mandi weight (kg)','Mandi price (₹)'];
+  const rows = [header];
+  hhs.forEach(h => {
+    const hGoats = goats.filter(g => g.household_id === h.id).slice().sort((a,b) => new Date(a.created_at||0) - new Date(b.created_at||0));
+    if (!hGoats.length) {
+      rows.push([c.village_name, c.camp_date, c.ps_name, h.hh_name, h.mobile||'', h.expected_goat_count||'', '', '', '', '', '', '', '', '', '']);
+    } else {
+      hGoats.forEach((g, i) => {
+        rows.push([
+          c.village_name, c.camp_date, c.ps_name, h.hh_name, h.mobile||'', h.expected_goat_count||'',
+          i+1, categoryLabel(g.category), g.quality||'', Math.round(g.weight_kg), g.final_price,
+          RESP_LABELS_CSV[g.hh_response] || g.hh_response,
+          g.collection_weight_kg ?? '', g.mandi_weight_kg ?? '', g.mandi_sale_price ?? ''
+        ]);
+      });
+    }
+  });
+  const csv = rows.map(row => row.map(csvCell).join(',')).join('\r\n');
+  const blob = new Blob([csv], { type: 'text/csv;charset=utf-8;' });
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement('a');
+  a.href = url;
+  a.download = `households-${(c.village_name||'camp').replace(/[^a-zA-Z0-9]+/g,'-')}-${c.camp_date}.csv`;
+  document.body.appendChild(a);
+  a.click();
+  document.body.removeChild(a);
+  URL.revokeObjectURL(url);
+}
+
 function setGoatResponse(id, resp) {
   const g = goats.find(x => x.id === id);
   if (!g) return;
@@ -1646,7 +1735,7 @@ function updateShrinkageDisplay() {
    this view spans every PS, so it must never get mixed into (or overwrite)
    the data the rest of the app uses for "my camps". */
 let adminCamps = [], adminHouseholds = [], adminGoats = [];
-let adminViewInterestedGoats = [], adminViewHhById = {}, adminViewCampById = {}, adminViewFilterLabel = '';
+let adminViewInterestedGoats = [], adminViewZeroGoatHouseholds = [], adminViewHhById = {}, adminViewCampById = {}, adminViewFilterLabel = '';
 
 async function refreshAdminData(fromStr, toStr) {
   if (!sb) return false;
@@ -1695,6 +1784,7 @@ async function renderAdminDashboard() {
   const filterPs = document.getElementById('adminFilterPs').value;
   const filterFrom = document.getElementById('adminFilterFrom').value;
   const filterTo = document.getElementById('adminFilterTo').value;
+  const filterView = document.getElementById('adminFilterView').value; // 'interested' | 'all'
   body.innerHTML = '<div class="empty-state">' + L('Loading…','लोड हो रहा है…') + '</div>';
   const ok = await refreshAdminData(filterFrom, filterTo);
   if (!ok) { body.innerHTML = '<div class="empty-state">' + L('Could not load — check internet and try again','लोड नहीं हो सका — इंटरनेट जांचें और फिर कोशिश करें') + '</div>'; return; }
@@ -1711,6 +1801,13 @@ async function renderAdminDashboard() {
   const interestedGoats = goatsInView.filter(g => g.hh_response === 'interested');
   const interestedValue = interestedGoats.reduce((s,g) => s + g.final_price, 0);
   const interestedHhIds = new Set(interestedGoats.map(g => g.household_id));
+
+  // What the goat-list section (and the share/download buttons below it)
+  // actually shows — either just the "said yes" households (existing
+  // default) or every household in view, per the new "देखें" filter.
+  const goatsForList = filterView === 'all' ? goatsInView : interestedGoats;
+  const hhIdsWithGoatsInList = new Set(goatsForList.map(g => g.household_id));
+  const zeroGoatHhInList = filterView === 'all' ? hhInView.filter(h => !hhIdsWithGoatsInList.has(h.id)) : [];
 
   // Per-PS breakdown — ps_name is stored directly on camps/goats already, no join needed.
   const psNames = [...new Set(campsInView.map(c => c.ps_name))].sort();
@@ -1738,11 +1835,14 @@ async function renderAdminDashboard() {
 
   // Stashed so shareAdminInterestedListOnWhatsApp()/downloadAdminInterestedList()
   // can build the same list the admin is currently looking at (respecting the
-  // PS + date filters above) without recomputing it themselves.
-  adminViewInterestedGoats = interestedGoats;
+  // PS + date + "देखें" filters above) without recomputing it themselves.
+  adminViewInterestedGoats = goatsForList;
+  adminViewZeroGoatHouseholds = zeroGoatHhInList;
   adminViewHhById = hhById;
   adminViewCampById = campById;
-  adminViewFilterLabel = (filterPs || L('All PS','सभी PS')) + ' · ' + filterFrom + ' → ' + filterTo;
+  adminViewFilterLabel = (filterPs || L('All PS','सभी PS')) + ' · ' + filterFrom + ' → ' + filterTo + ' · ' + (filterView === 'all' ? L('All households','सभी घर') : L('Said yes','इच्छुक'));
+
+  const respLabelsAdmin = { interested: L('Interested','इच्छुक'), awaited: L('Awaited','सोच रहे'), not_interested: L('Not interested','अनिच्छुक') };
 
   body.innerHTML = `
     <div class="table-summary" style="margin-bottom:14px;">
@@ -1752,7 +1852,7 @@ async function renderAdminDashboard() {
       <div class="summary-item"><strong>${interestedHhIds.size}</strong><span>${L('Interested HH','इच्छुक घर')}</span></div>
       <div class="summary-item"><strong>₹${fmtNum(interestedValue)}</strong><span>${L('Interested value','इच्छुक मूल्य')}</span></div>
     </div>
-    ${interestedGoats.length ? `
+    ${(goatsForList.length || zeroGoatHhInList.length) ? `
     <div class="row2" style="gap:8px; margin-bottom:14px;">
       <button class="btn-secondary" onclick="shareAdminInterestedListOnWhatsApp()">📲 <span data-en="Share list" data-hi="सूची भेजें">सूची भेजें</span></button>
       <button class="btn-secondary" onclick="downloadAdminInterestedList()">⬇️ <span data-en="Download list" data-hi="सूची डाउनलोड करें">सूची डाउनलोड करें</span></button>
@@ -1768,8 +1868,8 @@ async function renderAdminDashboard() {
         <div style="margin-top:8px; font-size:12.5px; color:var(--grey-500);">${L('Interested value','इच्छुक मूल्य')}: <strong style="color:var(--green-dark);">₹${fmtNum(p.interestedValue)}</strong></div>
       </div>`).join('') || '<div class="empty-state">' + L('No camps in this range','इस सीमा में कोई शिविर नहीं') + '</div>'}
 
-    <div class="card-title" style="margin-top:18px;" data-en="Interested goats — tap to record pickup/mandi weight" data-hi="इच्छुक पशु — पिकअप/मंडी वजन दर्ज करने के लिए टैप करें">इच्छुक पशु — पिकअप/मंडी वजन दर्ज करने के लिए टैप करें</div>
-    ${interestedGoats.map(g => {
+    <div class="card-title" style="margin-top:18px;">${filterView === 'all' ? L('All households — tap a goat to record pickup/mandi weight','सभी घर — पिकअप/मंडी वजन दर्ज करने के लिए किसी पशु पर टैप करें') : L('Interested goats — tap to record pickup/mandi weight','इच्छुक पशु — पिकअप/मंडी वजन दर्ज करने के लिए टैप करें')}</div>
+    ${goatsForList.map(g => {
       const hh = hhById[g.household_id], camp = campById[g.camp_id];
       const pickupDone = !!g.collection_weight_kg, mandiDone = !!g.mandi_weight_kg;
       return `<div class="goat-row" onclick="openGoatDetail('${g.id}', true)">
@@ -1782,25 +1882,44 @@ async function renderAdminDashboard() {
           <div style="font-size:18px; color:var(--grey-300);">›</div>
         </div>
         <div class="goat-chips">
+          ${filterView === 'all' ? `<span class="chip ${g.hh_response==='interested'?'chip-collected':'chip-norate'}">${respLabelsAdmin[g.hh_response]||g.hh_response}</span>` : ''}
           <span class="chip ${pickupDone?'chip-collected':'chip-norate'}">${pickupDone?('🚛 '+g.collection_weight_kg+'kg'):L('Pickup pending','पिकअप बाकी')}</span>
           <span class="chip ${mandiDone?'chip-mandi':'chip-norate'}">${mandiDone?('🏪 '+g.mandi_weight_kg+'kg'):L('Mandi pending','मंडी बाकी')}</span>
         </div>
       </div>`;
-    }).join('') || '<div class="empty-state">' + L('No interested goats yet','अभी कोई इच्छुक पशु नहीं') + '</div>'}
+    }).join('')}
+    ${zeroGoatHhInList.map(h => {
+      const camp = campById[h.camp_id];
+      return `<div class="goat-row" style="opacity:0.7;">
+        <div class="goat-row-top">
+          <div class="goat-thumb">🏠</div>
+          <div class="goat-info">
+            <div class="gname">${h.hh_name}</div>
+            <div class="gmeta">${camp?(camp.village_name+' · '+camp.ps_name):''} · ${L('No animals added yet','अभी कोई पशु नहीं जोड़ा गया')}</div>
+          </div>
+        </div>
+      </div>`;
+    }).join('')}
+    ${(!goatsForList.length && !zeroGoatHhInList.length) ? '<div class="empty-state">' + (filterView === 'all' ? L('No households in this range','इस सीमा में कोई घर नहीं') : L('No interested goats yet','अभी कोई इच्छुक पशु नहीं')) + '</div>' : ''}
   `;
 }
 
 // Same idea as buildCampInterestedListText() but for whatever the admin
-// dashboard's PS + date filters currently show — can span many camps and
-// PSes at once, so each household is grouped under its camp/village.
+// dashboard's PS + date + "देखें" filters currently show — can span many
+// camps and PSes at once, so each household is grouped under its
+// camp/village. adminViewInterestedGoats holds either just the "said yes"
+// goats or every goat in view, depending on that filter (see
+// renderAdminDashboard()); adminViewZeroGoatHouseholds only has entries
+// when the "all households" view is active.
 function buildAdminInterestedListText() {
-  if (!adminViewInterestedGoats.length) return null;
+  if (!adminViewInterestedGoats.length && !adminViewZeroGoatHouseholds.length) return null;
+  const respLabelsText = { interested: L('Interested','इच्छुक'), awaited: L('Awaited','सोच रहे'), not_interested: L('Not interested','अनिच्छुक') };
   const byCamp = {};
   adminViewInterestedGoats.forEach(g => {
     (byCamp[g.camp_id] = byCamp[g.camp_id] || []).push(g);
   });
   const lines = [];
-  lines.push(L('Interested households — ','इच्छुक घर — ') + adminViewFilterLabel);
+  lines.push(L('Households — ','घर — ') + adminViewFilterLabel);
   lines.push('═════════════════');
   let grandTotal = 0, hhCount = 0;
   Object.keys(byCamp).forEach(campId => {
@@ -1815,7 +1934,7 @@ function buildAdminInterestedListText() {
       lines.push(`  ${hh ? hh.hh_name : '—'}${hh?.mobile ? ' · ' + hh.mobile : ''}`);
       let hhTotal = 0;
       byHh[hhId].forEach((g, i) => {
-        lines.push(`     ${i+1}. ${categoryLabel(g.category)} · ${g.quality||''} ${L('quality','क्वालिटी')} · ${Math.round(g.weight_kg)} kg · ₹${fmtNum(g.final_price)}`);
+        lines.push(`     ${i+1}. ${categoryLabel(g.category)} · ${g.quality||''} ${L('quality','क्वालिटी')} · ${Math.round(g.weight_kg)} kg · ₹${fmtNum(g.final_price)} · ${respLabelsText[g.hh_response]||g.hh_response}`);
         hhTotal += g.final_price;
       });
       lines.push('     ' + L('Subtotal: ','उप-योग: ') + '₹' + fmtNum(hhTotal));
@@ -1823,6 +1942,15 @@ function buildAdminInterestedListText() {
     });
     lines.push('—————————');
   });
+  if (adminViewZeroGoatHouseholds.length) {
+    lines.push(L('Households with no animals added yet:','अभी कोई पशु न जोड़े घर:'));
+    adminViewZeroGoatHouseholds.forEach(h => {
+      const camp = adminViewCampById[h.camp_id];
+      hhCount++;
+      lines.push(`  ${h.hh_name}${h.mobile ? ' · ' + h.mobile : ''}${camp ? ' · ' + camp.village_name : ''}`);
+    });
+    lines.push('—————————');
+  }
   lines.push(L('Total (', 'कुल (') + hhCount + L(' households): ',' घर): ') + '₹' + fmtNum(grandTotal));
   return lines.join('\n');
 }
@@ -2234,8 +2362,18 @@ function currentWeightReadings() {
   const scaleQuote = r.scale != null ? computeQuote(c.region, sex, teeth, r.scale, quality) : null;
   const formulaQuote = r.formula != null ? computeQuote(c.region, sex, teeth, r.formula, quality) : null;
   priceRow.classList.add('show'); hint.style.display = '';
-  const scaleOk = renderPriceCard('Scale', r.scale, scaleQuote);
-  const formulaOk = renderPriceCard('Formula', r.formula, formulaQuote);
+
+  // Which price(s) to even show is an admin-controlled setting (see
+  // migrate_v3_9.sql / refreshAppSettings()) — a region/PS never sees this,
+  // it's decided centrally. When only one is shown there's nothing to tap,
+  // so it's auto-picked instead of waiting for a manual selection.
+  const showScale = appSettings.price_display !== 'formula_only';
+  const showFormula = appSettings.price_display !== 'scale_only';
+  const scaleOk = showScale ? renderPriceCard('Scale', r.scale, scaleQuote) : false;
+  const formulaOk = showFormula ? renderPriceCard('Formula', r.formula, formulaQuote) : false;
+  if (!showScale) document.getElementById('priceCardScale').style.display = 'none';
+  if (!showFormula) document.getElementById('priceCardFormula').style.display = 'none';
+  if (!(showScale && showFormula)) hint.style.display = 'none'; // nothing to "tap to choose" when only one is shown
 
   if (!scaleOk && !formulaOk) {
     priceRow.classList.remove('show'); hint.style.display = 'none';
@@ -2244,6 +2382,10 @@ function currentWeightReadings() {
     const anyIneligible = (scaleQuote && !scaleQuote.eligible) || (formulaQuote && !formulaQuote.eligible);
     if (anyNoRate) noRate.classList.add('show');
     else if (anyIneligible) warn.classList.add('show');
+  } else if (!showFormula) {
+    setPriceChoice('scale');
+  } else if (!showScale) {
+    setPriceChoice('formula');
   } else {
     // Clear a previous selection if that option just became invalid (e.g. a measurement changed)
     if (priceChoice === 'scale' && !scaleOk) priceChoice = null;
