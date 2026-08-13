@@ -385,25 +385,31 @@
     <div class="card-title" data-en="Animal photos (3 angles)" data-hi="पशु के फोटो (3 कोण से)">पशु के फोटो (3 कोण से)</div>
     <div class="photo-row">
       <div>
-        <div class="photo-box photo-box-sm" id="photoBox1" onclick="document.getElementById('photoInput1').click()">
+        <div class="photo-box photo-box-sm" id="photoBox1" onclick="document.getElementById('photoInputCamera1').click()">
           <div id="photoPlaceholder1">📷<div class="hint" data-en="Photo 1 (Front)" data-hi="फोटो 1 (सामने)">फोटो 1 (सामने)</div></div>
           <img id="photoPreview1" style="display:none;">
         </div>
-        <input type="file" id="photoInput1" accept="image/*" style="display:none;" onchange="onPhotoSelected(event,1)">
+        <div style="text-align:center; margin-top:4px;"><a href="javascript:void(0)" style="font-size:11px;" onclick="event.stopPropagation(); document.getElementById('photoInputGallery1').click()" data-en="or choose from gallery" data-hi="या गैलरी से चुनें">या गैलरी से चुनें</a></div>
+        <input type="file" id="photoInputCamera1" accept="image/*" capture="environment" style="display:none;" onchange="onPhotoSelected(event,1)">
+        <input type="file" id="photoInputGallery1" accept="image/*" style="display:none;" onchange="onPhotoSelected(event,1)">
       </div>
       <div>
-        <div class="photo-box photo-box-sm" id="photoBox2" onclick="document.getElementById('photoInput2').click()">
+        <div class="photo-box photo-box-sm" id="photoBox2" onclick="document.getElementById('photoInputCamera2').click()">
           <div id="photoPlaceholder2">📷<div class="hint" data-en="Photo 2 (Side)" data-hi="फोटो 2 (साइड से)">फोटो 2 (साइड से)</div></div>
           <img id="photoPreview2" style="display:none;">
         </div>
-        <input type="file" id="photoInput2" accept="image/*" style="display:none;" onchange="onPhotoSelected(event,2)">
+        <div style="text-align:center; margin-top:4px;"><a href="javascript:void(0)" style="font-size:11px;" onclick="event.stopPropagation(); document.getElementById('photoInputGallery2').click()" data-en="or choose from gallery" data-hi="या गैलरी से चुनें">या गैलरी से चुनें</a></div>
+        <input type="file" id="photoInputCamera2" accept="image/*" capture="environment" style="display:none;" onchange="onPhotoSelected(event,2)">
+        <input type="file" id="photoInputGallery2" accept="image/*" style="display:none;" onchange="onPhotoSelected(event,2)">
       </div>
       <div>
-        <div class="photo-box photo-box-sm" id="photoBox3" onclick="document.getElementById('photoInput3').click()">
+        <div class="photo-box photo-box-sm" id="photoBox3" onclick="document.getElementById('photoInputCamera3').click()">
           <div id="photoPlaceholder3">📷<div class="hint" data-en="Photo 3 (Back)" data-hi="फोटो 3 (पीछे से)">फोटो 3 (पीछे से)</div></div>
           <img id="photoPreview3" style="display:none;">
         </div>
-        <input type="file" id="photoInput3" accept="image/*" style="display:none;" onchange="onPhotoSelected(event,3)">
+        <div style="text-align:center; margin-top:4px;"><a href="javascript:void(0)" style="font-size:11px;" onclick="event.stopPropagation(); document.getElementById('photoInputGallery3').click()" data-en="or choose from gallery" data-hi="या गैलरी से चुनें">या गैलरी से चुनें</a></div>
+        <input type="file" id="photoInputCamera3" accept="image/*" capture="environment" style="display:none;" onchange="onPhotoSelected(event,3)">
+        <input type="file" id="photoInputGallery3" accept="image/*" style="display:none;" onchange="onPhotoSelected(event,3)">
       </div>
     </div>
     <div class="ai-quality-row hidden" id="aiQualityRow" style="margin-top:10px;">
