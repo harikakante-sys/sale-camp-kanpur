@@ -829,7 +829,7 @@ function L(en, hi) { return lang === 'en' ? en : hi; }
 const CATEGORY_LABELS = {
   young_male_small:   { hi: 'नर - छोटा (<17 kg)', en: 'Young male - small (<17 kg)' },
   young_male_regular: { hi: 'नर - सामान्य (17-26 kg)', en: 'Young male - regular (17-26 kg)' },
-  old_female:         { hi: 'पुरानी मादा (6-8 दांत)', en: 'Old female (6-8 teeth)' }
+  old_female:         { hi: 'पुरानी मादा (4-8 दांत)', en: 'Old female (4-8 teeth)' }
 };
 function categoryLabel(key) { return (CATEGORY_LABELS[key] && CATEGORY_LABELS[key][lang]) || key; }
 // Same as categoryLabel(), plus a visible flag for a goat priced at the
@@ -1608,13 +1608,25 @@ function renderGoatDetail() {
   document.getElementById('gdSub').textContent = categoryLabelFlagged(g.category, g.weight_out_of_range);
 
   const respLabels = { interested: L('Interested','इच्छुक'), awaited: L('Awaited decision','सोच रहे'), not_interested: L('Not interested','अनिच्छुक') };
-  const photoUrls = [g.photo_url_1, g.photo_url_2, g.photo_url_3].filter(Boolean);
-  let infoHtml = '';
-  if (photoUrls.length) {
-    infoHtml += `<div class="row3" style="gap:8px; margin-bottom:12px;">
-      ${photoUrls.map(url => `<a href="${url}" target="_blank" style="display:block; aspect-ratio:1; border-radius:8px; overflow:hidden; background:var(--grey-100);"><img src="${url}" alt="" style="width:100%; height:100%; object-fit:cover;"></a>`).join('')}
-    </div>`;
-  }
+  // Photos stay editable even after the goat is saved — a missed photo at
+  // camp time (forgot to tap, bad light, whatever) shouldn't be stuck
+  // blank forever. Tapping a filled box still opens the camera to retake;
+  // the gallery link works the same as on the original Add Goat screen.
+  let infoHtml = `<div class="row3" style="gap:8px; margin-bottom:4px;">
+    ${[1,2,3].map(idx => {
+      const url = g['photo_url_' + idx];
+      return `<div>
+        <div class="photo-box photo-box-sm" onclick="document.getElementById('gdPhotoCamera${idx}').click()">
+          ${url ? `<img src="${url}" alt="" style="width:100%;height:100%;object-fit:cover;border-radius:8px;">` : `<div>📷<div class="hint">${L('Photo','फोटो')} ${idx}</div></div>`}
+        </div>
+        <div style="text-align:center; margin-top:4px;"><a href="javascript:void(0)" style="font-size:11px;" onclick="event.stopPropagation(); document.getElementById('gdPhotoGallery${idx}').click()" data-en="or choose from gallery" data-hi="या गैलरी से चुनें">या गैलरी से चुनें</a></div>
+        <input type="file" id="gdPhotoCamera${idx}" accept="image/*" capture="environment" style="display:none;" onchange="onGoatDetailPhotoSelected(event,${idx})">
+        <input type="file" id="gdPhotoGallery${idx}" accept="image/*" style="display:none;" onchange="onGoatDetailPhotoSelected(event,${idx})">
+      </div>`;
+    }).join('')}
+  </div>
+  <div style="font-size:11px; color:var(--grey-500); margin-bottom:12px;" data-en="Tap a box to add or retake that photo" data-hi="फोटो जोड़ने या दोबारा लेने के लिए बॉक्स पर टैप करें">फोटो जोड़ने या दोबारा लेने के लिए बॉक्स पर टैप करें</div>
+  `;
   infoHtml += `
     <div class="row2" style="gap:12px;">
       <div><div style="font-size:11px;color:var(--grey-500);">${L('Sex','लिंग')}</div><div style="font-weight:600;">${g.sex==='male'?('🐐 '+L('Male','नर')):('🐑 '+L('Female','मादा'))}</div></div>
@@ -1681,6 +1693,54 @@ function resetMandiForm() {
   const g = findGoatAnywhere(currentGoatId); if (!g) return;
   g.mandi_weight_kg = null; g.mandi_datetime = null; g.mandi_sale_price = null; store.set('sc_goats', goats);
   renderGoatDetail();
+}
+
+// Lets a photo be added or retaken on an already-saved goat — the original
+// Add Goat screen only ever captured photos once, with no way back in if a
+// PS missed one (forgot to tap, bad light) or wanted to redo it later. This
+// reuses the same compression + on-device blur/dark check as the original
+// capture, then uploads directly (no offline queue — same pattern already
+// used for pickup/mandi weight edits on this screen: try now, clear error
+// if it fails, no silent loss).
+async function onGoatDetailPhotoSelected(e, idx) {
+  const file = e.target.files[0];
+  e.target.value = ''; // let the same file be re-selected later if needed
+  if (!file) return;
+  const g = findGoatAnywhere(currentGoatId);
+  if (!g) return;
+  try {
+    const compressed = await compressPhoto(file);
+    const assessment = await assessPhotoQuality(compressed);
+    if (assessment.blurry || assessment.dark || assessment.tooLight) {
+      const proceed = confirm(L('⚠️ This photo may be blurry or poorly lit. Use it anyway?','⚠️ यह फोटो धुंधली या खराब रोशनी में लग रही है। फिर भी उपयोग करें?'));
+      if (!proceed) return;
+    }
+    await uploadGoatDetailPhoto(g, idx, compressed);
+  } catch (err) {
+    console.error('Photo edit failed', err);
+    showToast(L('⚠️ Could not process photo — try again','⚠️ फोटो प्रोसेस नहीं हो सकी — फिर कोशिश करें'), false);
+  }
+}
+
+async function uploadGoatDetailPhoto(g, idx, blob) {
+  if (!sb) { showToast(L('⚠️ Not connected — try again later','⚠️ जुड़ा नहीं है — बाद में कोशिश करें'), false); return; }
+  showToast(L('Uploading…','अपलोड हो रहा है…'), true);
+  try {
+    const path = `${g.camp_id}/${g.id}/${idx}.jpg`;
+    const { error: upErr } = await sb.storage.from(PHOTO_BUCKET).upload(path, blob, { contentType: 'image/jpeg', upsert: true });
+    if (upErr) throw upErr;
+    const { data: pub } = sb.storage.from(PHOTO_BUCKET).getPublicUrl(path);
+    g['photo_url_' + idx] = pub.publicUrl;
+    g.photos_taken = [g.photo_url_1, g.photo_url_2, g.photo_url_3].filter(Boolean).length;
+    const { error: updErr } = await sb.from('goats').update({ ['photo_url_' + idx]: pub.publicUrl, photos_taken: g.photos_taken }).eq('id', g.id);
+    if (updErr) throw updErr;
+    store.set('sc_goats', goats);
+    showToast(L('✓ Photo saved','✓ फोटो सेव हुई'), true);
+    renderGoatDetail();
+  } catch (err) {
+    console.error('Photo upload failed', err);
+    showToast(L('⚠️ Could not upload photo — check internet and try again','⚠️ फोटो अपलोड नहीं हो सकी — इंटरनेट जांचें और फिर कोशिश करें'), false);
+  }
 }
 
 function savePickupWeight() {
