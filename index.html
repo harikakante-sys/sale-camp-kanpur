@@ -319,8 +319,10 @@
   </div>
   <div class="table-summary" id="hdSummary">
     <div class="summary-item"><strong id="hdGoatCount">0 / 0</strong><span data-en="Animals added" data-hi="पशु जोड़े गए">पशु जोड़े गए</span></div>
+    <div class="summary-item"><strong id="hdTotalValue">₹0</strong><span data-en="Total value" data-hi="कुल मूल्य">कुल मूल्य</span></div>
     <div class="summary-item"><strong id="hdInterestedValue">₹0</strong><span data-en="Interested value" data-hi="इच्छुक मूल्य">इच्छुक मूल्य</span></div>
   </div>
+  <button class="btn-secondary" id="btnMarkAllInterested" onclick="markHouseholdInterested(currentHouseholdId)" style="display:none; margin-bottom:10px;">✅ <span data-en="Mark all Interested" data-hi="सभी को इच्छुक करें">सभी को इच्छुक करें</span></button>
   <div id="goatList"><div class="empty-state" data-en="No animals added yet" data-hi="अभी कोई पशु नहीं जोड़ा गया">अभी कोई पशु नहीं जोड़ा गया</div></div>
   <button class="btn-secondary" id="btnShareWhatsapp" onclick="shareHouseholdOnWhatsApp()" style="display:none; margin-top:6px;">📲 <span data-en="Share on WhatsApp" data-hi="WhatsApp पर भेजें">WhatsApp पर भेजें</span></button>
   <button class="btn-primary" onclick="showScreen('newgoat')" style="margin-top:6px;">➕ <span data-en="Add animal" data-hi="पशु जोड़ें">पशु जोड़ें</span></button>
@@ -1339,16 +1341,42 @@ function renderCampDetail() {
   el.innerHTML = hhs.map(h => {
     const hGoats = goats.filter(g => g.household_id === h.id);
     const hValue = hGoats.filter(g => g.hh_response === 'interested').reduce((s,g) => s + g.final_price, 0);
+    const hTotal = hGoats.reduce((s,g) => s + g.final_price, 0);
     const expected = h.expected_goat_count ? (hGoats.length + ' / ' + h.expected_goat_count) : String(hGoats.length);
+    const allInterested = hGoats.length && hGoats.every(g => g.hh_response === 'interested');
     return `<div class="list-card" onclick="openHousehold('${h.id}')">
       <div class="list-card-top"><div class="list-card-name">${h.hh_name}</div></div>
       <div class="list-card-meta">${h.mobile || L('No mobile number','मोबाइल नहीं')}</div>
       <div class="list-card-stats">
         <div><div class="list-card-stat-label">${L('Animals added','पशु जोड़े गए')}</div><div class="list-card-stat-value">${expected}</div></div>
+        <div><div class="list-card-stat-label">${L('Total value','कुल मूल्य')}</div><div class="list-card-stat-value">₹${fmtNum(hTotal)}</div></div>
         <div><div class="list-card-stat-label">${L('Interested value','इच्छुक मूल्य')}</div><div class="list-card-stat-value">₹${fmtNum(hValue)}</div></div>
       </div>
+      ${hGoats.length && !allInterested ? `<button class="btn-secondary" style="margin-top:8px;" onclick="event.stopPropagation(); markHouseholdInterested('${h.id}')">✅ ${L('Mark all Interested','सभी को इच्छुक करें')}</button>` : ''}
     </div>`;
   }).join('');
+}
+
+// One-tap shortcut for the common case (a household said yes to everything)
+// — response still lives on each goat individually (see setGoatResponse()),
+// this just applies it to every goat under this household in one action.
+async function markHouseholdInterested(householdId) {
+  const hGoats = goats.filter(g => g.household_id === householdId);
+  for (const g of hGoats) {
+    if (g.hh_response === 'interested') continue;
+    g.hh_response = 'interested'; g.updated_at = new Date().toISOString();
+    const stillPending = pending.find(p => p.table === 'goats' && p.data.id === g.id && p.op === 'insert');
+    if (stillPending) { stillPending.data.hh_response = 'interested'; stillPending.data.updated_at = g.updated_at; }
+    else queueWrite('update', 'goats', { id: g.id, hh_response: 'interested', updated_at: g.updated_at });
+  }
+  store.set('sc_goats', goats);
+  store.set('sc_pending', pending);
+  showToast(L('✓ Marked all as Interested','✓ सभी को इच्छुक चिह्नित किया'), true);
+  // Callable from either screen (the camp's household list, or the
+  // household's own page) — refresh whichever is actually on screen.
+  const activeScreen = document.querySelector('.screen.active');
+  if (activeScreen && activeScreen.id === 'screen-campdetail') renderCampDetail();
+  if (activeScreen && activeScreen.id === 'screen-householddetail') renderHouseholdDetail();
 }
 
 function weightModeLabel(m) { return { scale: L('Scale','तराजू'), '2dim': L('2-point tape','2-माप टेप'), '5dim': L('5-point tape','5-माप टेप'), both: L('Scale + 5 measurements (lower)','तराजू + 5 माप (न्यूनतम)') }[m] || m; }
@@ -1434,9 +1462,13 @@ function renderHouseholdDetail() {
     .slice()
     .sort((a,b) => new Date(a.created_at || 0) - new Date(b.created_at || 0));
   const value = hGoats.filter(g => g.hh_response === 'interested').reduce((s,g) => s + g.final_price, 0);
+  const total = hGoats.reduce((s,g) => s + g.final_price, 0);
+  const allInterested = hGoats.length && hGoats.every(g => g.hh_response === 'interested');
   document.getElementById('hdGoatCount').textContent = hGoats.length + (h.expected_goat_count ? (' / ' + h.expected_goat_count) : '');
+  document.getElementById('hdTotalValue').textContent = '₹' + fmtNum(total);
   document.getElementById('hdInterestedValue').textContent = '₹' + fmtNum(value);
   document.getElementById('btnShareWhatsapp').style.display = hGoats.length ? 'block' : 'none';
+  document.getElementById('btnMarkAllInterested').style.display = (hGoats.length && !allInterested) ? 'block' : 'none';
 
   const el = document.getElementById('goatList');
   if (!hGoats.length) { el.innerHTML = '<div class="empty-state">' + L('No animals added yet','अभी कोई पशु नहीं जोड़ा गया') + '</div>'; return; }
