@@ -11,26 +11,54 @@
    tests/pricing.test.js under plain Node — no browser needed to test it.
    ═══════════════════════════════════════════════════════════════ */
 
-// Which purchase category (if any) a goat falls into, from sex + teeth + weight.
-// Business rule (confirmed by the product owner, updated 2026-08-13): ONLY
-// young males (milk or 2 permanent teeth) and old females (4, 6, or 8 teeth
-// — restored 2026-08-13, briefly excluded 2026-08-12) are ever purchased.
-// A 4-teeth female prices identically to a 6/8-teeth female (same category,
-// same rate). There is no longer a separate "large/body" male category — a
-// male over 26kg is still documented and priced (at the regular/medium
-// rate, so it never needs its own rate card entry), just flagged
-// outOfRange so it's visible in records that its actual weight was outside
-// the normal medium band.
+// Which purchase category (if any) a goat falls into, from sex + teeth +
+// weight. Business rule (confirmed by the product owner, updated
+// 2026-08-22) — six rate-card-backed categories, all requiring a minimum
+// weight to be eligible at all:
+//   young_male_small    male, 0-2 teeth, <20kg
+//   young_male_regular  male, 0-2 teeth, 20kg to <28kg
+//   young_male_body     male, 0-2 teeth, >=28kg ("body" is a real priced
+//                        category again — briefly removed 2026-08-12,
+//                        reinstated 2026-08-22 with its own rate)
+//   male_4teeth         male, 4 teeth, >=20kg (newly eligible — 4-teeth
+//                        males were never purchasable before this)
+//   old_female          female, 6-8 teeth, >=20kg (4-teeth females moved
+//                        to their own category below; the weight floor is
+//                        new — previously old_female had no weight test)
+//   female_4teeth       female, 4 teeth, >=20kg (newly its own category —
+//                        previously priced the same as 6/8-teeth females)
+// A female with 0-2 teeth is priced from the matching male young category
+// minus a flat discount (see FEMALE_YOUNG_DISCOUNT) rather than needing 3
+// more rate card entries of her own — rateLookupKey below is which
+// rate_card_lines row actually gets read. Any male category also carries
+// appliesCastration so computeQuote() can apply the uncastrated discount.
+const FEMALE_YOUNG_DISCOUNT = 20; // rupees per kg, below the equivalent male rate
+const UNCASTRATED_DISCOUNT = 10;  // rupees per kg, for any male not castrated
+
 function classify(sexVal, teethStr, weight) {
   const t = parseInt(teethStr, 10), w = parseFloat(weight);
   if (isNaN(t) || isNaN(w) || !sexVal) return null;
-  if (sexVal === 'male' && (t === 0 || t === 2)) {
-    if (w < 17) return { key: 'young_male_small', label: 'नर - छोटा (<17 kg)' };
-    if (w <= 26) return { key: 'young_male_regular', label: 'नर - सामान्य (17-26 kg)' };
-    return { key: 'young_male_regular', label: 'नर - सामान्य (>26 kg)', outOfRange: true };
+
+  if (t === 0 || t === 2) {
+    let maleKey, femaleKey;
+    if (w < 20) { maleKey = 'young_male_small'; femaleKey = 'young_female_small'; }
+    else if (w < 28) { maleKey = 'young_male_regular'; femaleKey = 'young_female_regular'; }
+    else { maleKey = 'young_male_body'; femaleKey = 'young_female_body'; }
+    if (sexVal === 'male') return { key: maleKey, rateLookupKey: maleKey, appliesCastration: true };
+    if (sexVal === 'female') return { key: femaleKey, rateLookupKey: maleKey, femaleDiscount: FEMALE_YOUNG_DISCOUNT };
+    return null;
   }
-  if (sexVal === 'female' && (t === 4 || t === 6 || t === 8)) {
-    return { key: 'old_female', label: 'पुरानी मादा (4-8 दांत)' };
+  if (sexVal === 'male' && t === 4) {
+    if (w < 20) return null;
+    return { key: 'male_4teeth', rateLookupKey: 'male_4teeth', appliesCastration: true };
+  }
+  if (sexVal === 'female' && (t === 6 || t === 8)) {
+    if (w < 20) return null;
+    return { key: 'old_female', rateLookupKey: 'old_female' };
+  }
+  if (sexVal === 'female' && t === 4) {
+    if (w < 20) return null;
+    return { key: 'female_4teeth', rateLookupKey: 'female_4teeth' };
   }
   return null;
 }
@@ -54,15 +82,19 @@ function estimateWeightFromMeasurementsF3(hg, bl, pg, rw, h) {
   return 0.001747 * Math.pow(hgIn, 1.825) * Math.pow(blIn, 0.536) * Math.pow(pgIn, 0.059) * Math.pow(rwIn, 0.016) * Math.pow(hIn, 0.503);
 }
 
-// Full price quote for a goat, given the currently-synced rate card for its region.
+// Full price quote for a goat, given the currently-synced rate card for its
+// region. `castrated` only matters for male goats (see classify()'s
+// appliesCastration) — pass null/undefined for females, it's simply ignored.
 // rateCache shape: { [region]: { version, buffer, lines: { "category|quality": ratePerKg } } }
-function computeQuote(rateCache, region, sexVal, teethStr, weight, quality) {
+function computeQuote(rateCache, region, sexVal, teethStr, weight, quality, castrated) {
   const cat = classify(sexVal, teethStr, weight);
   if (!cat) return { eligible: false };
   const rc = rateCache[region];
   if (!rc) return { eligible: true, category: cat, noRateCard: true };
-  const rate = rc.lines[cat.key + '|' + quality];
+  let rate = rc.lines[cat.rateLookupKey + '|' + quality];
   if (rate == null) return { eligible: true, category: cat, noRateCard: true };
+  if (cat.appliesCastration && !castrated) rate -= UNCASTRATED_DISCOUNT;
+  if (cat.femaleDiscount) rate -= cat.femaleDiscount;
   const finalPrice = Math.round(parseFloat(weight) * rate * rc.buffer);
   return { eligible: true, category: cat, noRateCard: false, rate, buffer: rc.buffer, finalPrice };
 }

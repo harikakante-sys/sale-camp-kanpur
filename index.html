@@ -431,6 +431,13 @@
         <button class="toggle-btn" id="btnFemale" onclick="setSex('female')">🐑 <span data-en="Female" data-hi="मादा">मादा</span></button>
       </div>
     </div>
+    <div class="field" id="castratedField" style="display:none;">
+      <label class="req" data-en="Castrated?" data-hi="बधिया है या नहीं?">बधिया है या नहीं?</label>
+      <div class="toggle-group">
+        <button class="toggle-btn" id="btnCastratedYes" onclick="setCastrated(true)">✅ <span data-en="Castrated" data-hi="बधिया">बधिया</span></button>
+        <button class="toggle-btn" id="btnCastratedNo" onclick="setCastrated(false)">⭕ <span data-en="Not castrated" data-hi="गैर-बधिया">गैर-बधिया</span></button>
+      </div>
+    </div>
     <div class="row2">
       <div class="field"><label class="req" data-en="Teeth" data-hi="दांत">दांत</label>
         <select id="gTeeth" onchange="recalcAddGoat()">
@@ -488,6 +495,7 @@
   <div class="warning-msg" id="gWarning" data-en="⚠️ This animal doesn't fall in our purchase category (only young males and old females)." data-hi="⚠️ यह पशु हमारी खरीद श्रेणी में नहीं आता (केवल युवा नर और पुरानी मादा)।">⚠️ यह पशु हमारी खरीद श्रेणी में नहीं आता (केवल युवा नर और पुरानी मादा)।</div>
   <div class="warning-msg" id="gNoRate" data-en="⚠️ No valid rate card is available for this region. Connect to the internet once and sync." data-hi="⚠️ इस क्षेत्र के लिए कोई मान्य रेट कार्ड उपलब्ध नहीं है। इंटरनेट से एक बार जुड़ें और सिंक करें।">⚠️ इस क्षेत्र के लिए कोई मान्य रेट कार्ड उपलब्ध नहीं है। इंटरनेट से एक बार जुड़ें और सिंक करें।</div>
   <div class="warning-msg" id="gMissingWeight" data-en="⚠️ Weight, heart girth, body length, height, rump width, and paunch girth are all required." data-hi="⚠️ वजन, हार्ट गर्थ, बॉडी लेंथ, ऊंचाई, रम्प चौड़ाई और पौंच गर्थ — सभी जरूरी हैं।">⚠️ वजन, हार्ट गर्थ, बॉडी लेंथ, ऊंचाई, रम्प चौड़ाई और पौंच गर्थ — सभी जरूरी हैं।</div>
+  <div class="warning-msg" id="gMissingCastration" data-en="⚠️ Select whether the animal is castrated or not." data-hi="⚠️ चुनें कि पशु बधिया है या नहीं।">⚠️ चुनें कि पशु बधिया है या नहीं।</div>
 
   <div class="price-choice-row" id="priceChoiceRow">
     <div class="price-card" id="priceCardScale" onclick="setPriceChoice('scale')">
@@ -528,6 +536,13 @@
       <div class="toggle-group">
         <button class="toggle-btn" id="cBtnMale" onclick="setCalcSex('male')">🐐 <span data-en="Male" data-hi="नर">नर</span></button>
         <button class="toggle-btn" id="cBtnFemale" onclick="setCalcSex('female')">🐑 <span data-en="Female" data-hi="मादा">मादा</span></button>
+      </div>
+    </div>
+    <div class="field" id="cCastratedField" style="display:none;">
+      <label class="req" data-en="Castrated?" data-hi="बधिया है या नहीं?">बधिया है या नहीं?</label>
+      <div class="toggle-group">
+        <button class="toggle-btn" id="cBtnCastratedYes" onclick="setCalcCastrated(true)">✅ <span data-en="Castrated" data-hi="बधिया">बधिया</span></button>
+        <button class="toggle-btn" id="cBtnCastratedNo" onclick="setCalcCastrated(false)">⭕ <span data-en="Not castrated" data-hi="गैर-बधिया">गैर-बधिया</span></button>
       </div>
     </div>
     <div class="row2">
@@ -745,6 +760,13 @@
         <button class="toggle-btn" id="qcBtnFemale" onclick="setQuickCalcSex('female')">🐑 <span data-en="Female" data-hi="मादा">मादा</span></button>
       </div>
     </div>
+    <div class="field" id="qcCastratedField" style="display:none;">
+      <label class="req" data-en="Castrated?" data-hi="बधिया है या नहीं?">बधिया है या नहीं?</label>
+      <div class="toggle-group">
+        <button class="toggle-btn" id="qcBtnCastratedYes" onclick="setQuickCalcCastrated(true)">✅ <span data-en="Castrated" data-hi="बधिया">बधिया</span></button>
+        <button class="toggle-btn" id="qcBtnCastratedNo" onclick="setQuickCalcCastrated(false)">⭕ <span data-en="Not castrated" data-hi="गैर-बधिया">गैर-बधिया</span></button>
+      </div>
+    </div>
     <div class="row2">
       <div class="field"><label class="req" data-en="Teeth" data-hi="दांत">दांत</label>
         <select id="qcTeeth" onchange="recalcQuickCalc()">
@@ -827,15 +849,22 @@ function L(en, hi) { return lang === 'en' ? en : hi; }
 // (kept as-is — it's covered by the pricing tests and not worth touching for a
 // display-only change), so the UI maps category.key to a bilingual label here.
 const CATEGORY_LABELS = {
-  young_male_small:   { hi: 'नर - छोटा (<17 kg)', en: 'Young male - small (<17 kg)' },
-  young_male_regular: { hi: 'नर - सामान्य (17-26 kg)', en: 'Young male - regular (17-26 kg)' },
-  old_female:         { hi: 'पुरानी मादा (4-8 दांत)', en: 'Old female (4-8 teeth)' }
+  young_male_small:    { hi: 'नर - छोटा (<20 kg)', en: 'Young male - small (<20 kg)' },
+  young_male_regular:  { hi: 'नर - सामान्य (20-27 kg)', en: 'Young male - regular (20-27 kg)' },
+  young_male_body:     { hi: 'नर - बॉडी (28+ kg)', en: 'Young male - body (28+ kg)' },
+  male_4teeth:         { hi: 'नर - 4 दांत (20+ kg)', en: 'Male - 4 teeth (20+ kg)' },
+  old_female:          { hi: 'पुरानी मादा - 6-8 दांत (20+ kg)', en: 'Old female - 6-8 teeth (20+ kg)' },
+  female_4teeth:       { hi: 'मादा - 4 दांत (20+ kg)', en: 'Female - 4 teeth (20+ kg)' },
+  // Not on the rate card screen — priced from the matching young_male_*
+  // rate minus a flat discount (see pricing.js FEMALE_YOUNG_DISCOUNT).
+  young_female_small:   { hi: 'मादा - छोटी (<20 kg)', en: 'Young female - small (<20 kg)' },
+  young_female_regular: { hi: 'मादा - सामान्य (20-27 kg)', en: 'Young female - regular (20-27 kg)' },
+  young_female_body:    { hi: 'मादा - बॉडी (28+ kg)', en: 'Young female - body (28+ kg)' }
 };
 function categoryLabel(key) { return (CATEGORY_LABELS[key] && CATEGORY_LABELS[key][lang]) || key; }
-// Same as categoryLabel(), plus a visible flag for a goat priced at the
-// regular rate but outside the normal weight band (see pricing.js classify()
-// — a >26kg male, updated 2026-08-12: there's no separate "body" category
-// anymore, this one still prices as regular, just documented as out of range).
+// outOfRange is retired (there's a real priced "body" category again as of
+// 2026-08-22, so nothing sets this flag anymore) — kept as a harmless
+// passthrough so existing call sites don't all need touching.
 function categoryLabelFlagged(key, outOfRange) {
   return categoryLabel(key) + (outOfRange ? ' ⚠️ ' + L('(out of range)','(आउट ऑफ रेंज)') : '');
 }
@@ -884,7 +913,7 @@ let rateCache = store.get('sc_rate_cache', {});
 let regionsCache = store.get('sc_regions_cache', []);
 let appSettings = store.get('sc_app_settings', { price_display: 'both' });
 
-let sex = null, response = null;
+let sex = null, response = null, castrated = null;
 let currentCampId = null, currentHouseholdId = null, currentGoatId = null;
 let openedGoatFromAdmin = false;
 let calcSex = null;
@@ -1160,8 +1189,8 @@ async function refreshRateCard(region) {
   } catch (e) { return rateCache[region] || null; }
 }
 
-function computeQuote(region, sexVal, teethStr, weight, quality) {
-  return PricingLib.computeQuote(rateCache, region, sexVal, teethStr, weight, quality);
+function computeQuote(region, sexVal, teethStr, weight, quality, castrated) {
+  return PricingLib.computeQuote(rateCache, region, sexVal, teethStr, weight, quality, castrated);
 }
 
 /* ═══════════════════════ CAMPS ═══════════════════════ */
@@ -1538,17 +1567,18 @@ function downloadCampHouseholdsCsv() {
   const hhs = households.filter(h => h.camp_id === c.id);
   if (!hhs.length) { showToast(L('⚠️ No households in this camp yet','⚠️ इस शिविर में अभी कोई घर नहीं'), false); return; }
 
-  const header = ['Village','Camp date','PS name','Household name','Mobile','Expected goats','Goat #','Category','Quality','Weight (kg)','Price (₹)','Response','Pickup weight (kg)','Mandi weight (kg)','Mandi price (₹)'];
+  const header = ['Village','Camp date','PS name','Household name','Mobile','Expected goats','Goat #','Category','Castrated?','Quality','Weight (kg)','Price (₹)','Response','Pickup weight (kg)','Mandi weight (kg)','Mandi price (₹)'];
   const rows = [header];
+  const castratedLabel = (g) => g.castrated == null ? '' : (g.castrated ? 'Castrated' : 'Not castrated');
   hhs.forEach(h => {
     const hGoats = goats.filter(g => g.household_id === h.id).slice().sort((a,b) => new Date(a.created_at||0) - new Date(b.created_at||0));
     if (!hGoats.length) {
-      rows.push([c.village_name, c.camp_date, c.ps_name, h.hh_name, h.mobile||'', h.expected_goat_count||'', '', '', '', '', '', '', '', '', '']);
+      rows.push([c.village_name, c.camp_date, c.ps_name, h.hh_name, h.mobile||'', h.expected_goat_count||'', '', '', '', '', '', '', '', '', '', '']);
     } else {
       hGoats.forEach((g, i) => {
         rows.push([
           c.village_name, c.camp_date, c.ps_name, h.hh_name, h.mobile||'', h.expected_goat_count||'',
-          i+1, categoryLabelFlagged(g.category, g.weight_out_of_range), g.quality||'', Math.round(g.weight_kg), g.final_price,
+          i+1, categoryLabelFlagged(g.category, g.weight_out_of_range), castratedLabel(g), g.quality||'', Math.round(g.weight_kg), g.final_price,
           RESP_LABELS_CSV[g.hh_response] || g.hh_response,
           g.collection_weight_kg ?? '', g.mandi_weight_kg ?? '', g.mandi_sale_price ?? ''
         ]);
@@ -1633,6 +1663,7 @@ function renderGoatDetail() {
       <div><div style="font-size:11px;color:var(--grey-500);">${L('Teeth','दांत')}</div><div style="font-weight:600;">${g.teeth}</div></div>
       <div><div style="font-size:11px;color:var(--grey-500);">${L('Quality','क्वालिटी')}</div><div style="font-weight:600;">${g.quality}</div></div>
       <div><div style="font-size:11px;color:var(--grey-500);">${L('Camp weight','शिविर वजन')}</div><div style="font-weight:600;">${Math.round(g.weight_kg)} kg</div></div>
+      ${g.sex==='male' ? `<div><div style="font-size:11px;color:var(--grey-500);">${L('Castrated','बधिया')}</div><div style="font-weight:600;">${g.castrated==null?'—':(g.castrated?L('Yes','हाँ'):L('No','नहीं'))}</div></div>` : ''}
     </div>`;
   if (g.heart_girth || g.body_length) {
     infoHtml += `<div style="margin-top:10px;font-size:12px;color:var(--grey-500);">${L('Measurements','माप')}: HG=${g.heart_girth||'—'}cm BL=${g.body_length||'—'}cm Ht=${g.height_cm||'—'}cm Rump=${g.rump_width||'—'} Paunch=${g.paunch_girth||'—'}</div>`;
@@ -2143,7 +2174,7 @@ async function addNewPs() {
    version, never change a price a camp is already using — computeQuote()
    already prefers whichever row has the most recent effective_from, so a
    freshly inserted row just naturally becomes the active one going forward. */
-const RATE_CATEGORIES = ['young_male_small','young_male_regular','old_female'];
+const RATE_CATEGORIES = ['young_male_small','young_male_regular','young_male_body','male_4teeth','old_female','female_4teeth'];
 const RATE_QUALITIES = ['1st','2nd','3rd'];
 
 async function renderRateCardScreen() {
@@ -2248,9 +2279,12 @@ function prepAddGoat() {
   if (!c || !h) { showScreen('camps'); return; }
   document.getElementById('ngHhLine').textContent = h.hh_name + ' · ' + c.village_name;
 
-  sex = null; response = null;
+  sex = null; response = null; castrated = null;
   document.getElementById('btnMale').className = 'toggle-btn';
   document.getElementById('btnFemale').className = 'toggle-btn';
+  document.getElementById('castratedField').style.display = 'none';
+  document.getElementById('btnCastratedYes').className = 'toggle-btn';
+  document.getElementById('btnCastratedNo').className = 'toggle-btn';
   document.getElementById('respInterested').className = 'toggle-btn';
   document.getElementById('respAwaited').className = 'toggle-btn';
   document.getElementById('respNotInterested').className = 'toggle-btn';
@@ -2311,7 +2345,23 @@ function renderGoatProgress() {
     : L(`Goat ${nextNum} for this household`, `इस घर के लिए पशु ${nextNum}`);
 }
 
-function setSex(v) { sex = v; document.getElementById('btnMale').className = 'toggle-btn' + (v==='male'?' sel':''); document.getElementById('btnFemale').className = 'toggle-btn' + (v==='female'?' sel-female':''); recalcAddGoat(); }
+function setSex(v) {
+  sex = v;
+  document.getElementById('btnMale').className = 'toggle-btn' + (v==='male'?' sel':'');
+  document.getElementById('btnFemale').className = 'toggle-btn' + (v==='female'?' sel-female':'');
+  // Castration only applies to males — a female goat never sees this
+  // question, and any previous answer is cleared so switching sex back and
+  // forth can't leave a stale castrated value behind.
+  document.getElementById('castratedField').style.display = (v === 'male') ? 'block' : 'none';
+  if (v !== 'male') setCastrated(null);
+  recalcAddGoat();
+}
+function setCastrated(v) {
+  castrated = v;
+  document.getElementById('btnCastratedYes').className = 'toggle-btn' + (v===true?' sel':'');
+  document.getElementById('btnCastratedNo').className = 'toggle-btn' + (v===false?' sel':'');
+  recalcAddGoat();
+}
 function setResponse(v) {
   response = v;
   document.getElementById('respInterested').className = 'toggle-btn' + (v==='interested'?' sel':'');
@@ -2420,10 +2470,13 @@ function currentWeightReadings() {
     sex, teeth
   );
   renderWeightReadings(r);
-  if (!sex || !teeth || !quality || (r.scale == null && r.formula == null)) return r;
+  // Castration is only answerable once sex is known, and only matters for
+  // males — a female never needs it, but a male can't get a price until
+  // it's answered (uncastrated changes the rate, so there's no safe default).
+  if (!sex || !teeth || !quality || (sex === 'male' && castrated === null) || (r.scale == null && r.formula == null)) return r;
 
-  const scaleQuote = r.scale != null ? computeQuote(c.region, sex, teeth, r.scale, quality) : null;
-  const formulaQuote = r.formula != null ? computeQuote(c.region, sex, teeth, r.formula, quality) : null;
+  const scaleQuote = r.scale != null ? computeQuote(c.region, sex, teeth, r.scale, quality, castrated) : null;
+  const formulaQuote = r.formula != null ? computeQuote(c.region, sex, teeth, r.formula, quality, castrated) : null;
   priceRow.classList.add('show'); hint.style.display = '';
 
   // Which price(s) to even show is an admin-controlled setting (see
@@ -2479,9 +2532,11 @@ function recalcAddGoat() {
   const quality = document.getElementById('gQuality').value;
   const warn = document.getElementById('gWarning'), noRate = document.getElementById('gNoRate');
   const missingWeight = document.getElementById('gMissingWeight');
-  warn.classList.remove('show'); noRate.classList.remove('show'); missingWeight.classList.remove('show');
+  const missingCastration = document.getElementById('gMissingCastration');
+  warn.classList.remove('show'); noRate.classList.remove('show'); missingWeight.classList.remove('show'); missingCastration.classList.remove('show');
   document.getElementById('btnSaveGoat').disabled = true;
   if (!sex || !teeth || !quality) { document.getElementById('priceChoiceRow').classList.remove('show'); document.getElementById('priceChoiceHint').style.display = 'none'; renderWeightReadings(null); return; }
+  if (sex === 'male' && castrated === null) { missingCastration.classList.add('show'); document.getElementById('priceChoiceRow').classList.remove('show'); document.getElementById('priceChoiceHint').style.display = 'none'; renderWeightReadings(null); return; }
   if (!allWeightFieldsFilled()) { missingWeight.classList.add('show'); document.getElementById('priceChoiceRow').classList.remove('show'); document.getElementById('priceChoiceHint').style.display = 'none'; renderWeightReadings(null); return; }
   currentWeightReadings(); // computes both readings, renders both price cards, preserves/clears the selection
   updateSaveGoatEnabled();
@@ -2815,8 +2870,8 @@ async function saveGoat() {
     document.getElementById('gHt5').value, document.getElementById('gRw5').value, document.getElementById('gPg5').value,
     sex, teeth
   );
-  const scaleQuote = r.scale != null ? computeQuote(c.region, sex, teeth, r.scale, quality) : null;
-  const formulaQuote = r.formula != null ? computeQuote(c.region, sex, teeth, r.formula, quality) : null;
+  const scaleQuote = r.scale != null ? computeQuote(c.region, sex, teeth, r.scale, quality, castrated) : null;
+  const formulaQuote = r.formula != null ? computeQuote(c.region, sex, teeth, r.formula, quality, castrated) : null;
   const quote = priceChoice === 'scale' ? scaleQuote : formulaQuote;
   const chosenWeight = priceChoice === 'scale' ? r.scale : r.formula;
   if (!quote || !quote.eligible || quote.noRateCard) { showToast(L('⚠️ Please fill in all details correctly first','⚠️ पहले पूरी जानकारी सही भरें'), false); return; }
@@ -2848,6 +2903,7 @@ async function saveGoat() {
     ai_quality_suggested: aiSuggestedQuality || null,
     category: quote.category.key, rate_per_kg: quote.rate, buffer: quote.buffer, final_price: quote.finalPrice,
     weight_out_of_range: !!quote.category.outOfRange,
+    castrated: sex === 'male' ? castrated : null,
     hh_response: response, photos_taken: photosTaken, ps_name: ps.name,
     created_at: new Date().toISOString(), updated_at: new Date().toISOString()
   };
@@ -2892,14 +2948,17 @@ function finishHouseholdGoats() {
    Opens as a modal over the New Animal screen instead of navigating to the
    Calculator tab — navigating away would reset the in-progress goat form
    (prepAddGoat() clears every field, including captured photos, on entry). */
-let quickCalcSex = null;
+let quickCalcSex = null, quickCalcCastrated = null;
 
 function openQuickCalc() {
   const c = camps.find(x => x.id === currentCampId);
   if (!c) return;
-  quickCalcSex = null;
+  quickCalcSex = null; quickCalcCastrated = null;
   document.getElementById('qcBtnMale').className = 'toggle-btn';
   document.getElementById('qcBtnFemale').className = 'toggle-btn';
+  document.getElementById('qcCastratedField').style.display = 'none';
+  document.getElementById('qcBtnCastratedYes').className = 'toggle-btn';
+  document.getElementById('qcBtnCastratedNo').className = 'toggle-btn';
   document.getElementById('qcTeeth').value = '';
   document.getElementById('qcQuality').value = '';
   document.getElementById('qcWeight').value = '';
@@ -2917,6 +2976,13 @@ function setQuickCalcSex(v) {
   quickCalcSex = v;
   document.getElementById('qcBtnMale').className = 'toggle-btn' + (v==='male'?' sel':'');
   document.getElementById('qcBtnFemale').className = 'toggle-btn' + (v==='female'?' sel-female':'');
+  document.getElementById('qcCastratedField').style.display = (v === 'male') ? 'block' : 'none';
+  if (v !== 'male') setQuickCalcCastrated(null); else recalcQuickCalc();
+}
+function setQuickCalcCastrated(v) {
+  quickCalcCastrated = v;
+  document.getElementById('qcBtnCastratedYes').className = 'toggle-btn' + (v===true?' sel':'');
+  document.getElementById('qcBtnCastratedNo').className = 'toggle-btn' + (v===false?' sel':'');
   recalcQuickCalc();
 }
 
@@ -2928,7 +2994,8 @@ function recalcQuickCalc() {
   const warn = document.getElementById('qcWarning'), result = document.getElementById('qcResult');
   warn.classList.remove('show'); result.classList.remove('show');
   if (!c || !quickCalcSex || !teeth || !quality || !weight) return;
-  const quote = computeQuote(c.region, quickCalcSex, teeth, weight, quality);
+  if (quickCalcSex === 'male' && quickCalcCastrated === null) return;
+  const quote = computeQuote(c.region, quickCalcSex, teeth, weight, quality, quickCalcCastrated);
   if (!quote.eligible || quote.noRateCard) { warn.classList.add('show'); return; }
   document.getElementById('qcCat').textContent = categoryLabelFlagged(quote.category.key, quote.category.outOfRange);
   document.getElementById('qcFinal').textContent = '₹' + fmtNum(quote.finalPrice);
@@ -2936,7 +3003,20 @@ function recalcQuickCalc() {
 }
 
 /* ═══════════════════════ CALCULATOR ═══════════════════════ */
-function setCalcSex(v) { calcSex = v; document.getElementById('cBtnMale').className='toggle-btn'+(v==='male'?' sel':''); document.getElementById('cBtnFemale').className='toggle-btn'+(v==='female'?' sel-female':''); recalcCalc(); }
+let calcCastrated = null;
+function setCalcSex(v) {
+  calcSex = v;
+  document.getElementById('cBtnMale').className='toggle-btn'+(v==='male'?' sel':'');
+  document.getElementById('cBtnFemale').className='toggle-btn'+(v==='female'?' sel-female':'');
+  document.getElementById('cCastratedField').style.display = (v === 'male') ? 'block' : 'none';
+  if (v !== 'male') setCalcCastrated(null); else recalcCalc();
+}
+function setCalcCastrated(v) {
+  calcCastrated = v;
+  document.getElementById('cBtnCastratedYes').className = 'toggle-btn' + (v===true?' sel':'');
+  document.getElementById('cBtnCastratedNo').className = 'toggle-btn' + (v===false?' sel':'');
+  recalcCalc();
+}
 
 async function recalcCalc() {
   const region = ps ? ps.region : null;
@@ -2946,8 +3026,9 @@ async function recalcCalc() {
   const warn = document.getElementById('cWarning'), result = document.getElementById('cResult');
   warn.classList.remove('show'); result.classList.remove('show');
   if (!region || !calcSex || !teeth || !quality || !weight) return;
+  if (calcSex === 'male' && calcCastrated === null) return;
   if (!rateCache[region]) await refreshRateCard(region);
-  const quote = computeQuote(region, calcSex, teeth, weight, quality);
+  const quote = computeQuote(region, calcSex, teeth, weight, quality, calcCastrated);
   if (!quote.eligible) { warn.textContent = L('⚠️ This animal doesn\'t fall in our purchase category.','⚠️ यह पशु हमारी खरीद श्रेणी में नहीं आता।'); warn.classList.add('show'); return; }
   if (quote.noRateCard) { warn.textContent = L('⚠️ No rate card is available for this region.','⚠️ इस क्षेत्र के लिए रेट कार्ड उपलब्ध नहीं है।'); warn.classList.add('show'); return; }
   document.getElementById('cCat').textContent = categoryLabelFlagged(quote.category.key, quote.category.outOfRange);
