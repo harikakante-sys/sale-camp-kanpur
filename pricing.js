@@ -48,16 +48,19 @@ function classify(sexVal, teethStr, weight) {
     if (sexVal === 'female') return { key: femaleKey, rateLookupKey: maleKey, femaleDiscount: FEMALE_YOUNG_DISCOUNT };
     return null;
   }
+  // Floor lowered 2026-08-23 (was 20kg for all three) — a real field animal
+  // at 19kg was being rejected outright mid-camp; product owner chose 18kg
+  // for all three of these single-band categories instead.
   if (sexVal === 'male' && t === 4) {
-    if (w < 20) return null;
+    if (w < 18) return null;
     return { key: 'male_4teeth', rateLookupKey: 'male_4teeth', appliesCastration: true };
   }
   if (sexVal === 'female' && (t === 6 || t === 8)) {
-    if (w < 20) return null;
+    if (w < 18) return null;
     return { key: 'old_female', rateLookupKey: 'old_female' };
   }
   if (sexVal === 'female' && t === 4) {
-    if (w < 20) return null;
+    if (w < 18) return null;
     return { key: 'female_4teeth', rateLookupKey: 'female_4teeth' };
   }
   return null;
