@@ -725,8 +725,14 @@
 
   <div class="card" style="background:var(--rose-pale, #F9EFF7);">
     <div class="card-title" style="color:#9C4A8A;" data-en="Female, 0-2 teeth (not editable here)" data-hi="मादा - 0-2 दांत (यहां संपादन योग्य नहीं)">मादा - 0-2 दांत (यहां संपादन योग्य नहीं)</div>
-    <div style="font-size:12px; color:var(--grey-700); margin-bottom:8px;" data-en="Always ₹20/kg less than the matching male rate above — updates automatically, never entered separately." data-hi="हमेशा ऊपर वाली नर दर से ₹20/kg कम — अपने आप अपडेट होता है, अलग से नहीं भरा जाता।">हमेशा ऊपर वाली नर दर से ₹20/kg कम — अपने आप अपडेट होता है, अलग से नहीं भरा जाता।</div>
+    <div style="font-size:12px; color:var(--grey-700); margin-bottom:8px;" data-en="Always ₹10/kg less than the matching male rate above — updates automatically, never entered separately." data-hi="हमेशा ऊपर वाली नर दर से ₹10/kg कम — अपने आप अपडेट होता है, अलग से नहीं भरा जाता।">हमेशा ऊपर वाली नर दर से ₹10/kg कम — अपने आप अपडेट होता है, अलग से नहीं भरा जाता।</div>
     <div id="rcFemaleYoungPreview" style="font-size:12.5px; color:var(--grey-700); line-height:1.7;">—</div>
+  </div>
+
+  <div class="card" style="background:var(--blue-pale, #E6F1FB);">
+    <div class="card-title" style="color:#0C447C;" data-en="Castrated vs not-castrated" data-hi="बधिया बनाम गैर-बधिया">बधिया बनाम गैर-बधिया</div>
+    <div style="font-size:12px; color:var(--grey-700); margin-bottom:8px;" data-en="For नर - छोटा / सामान्य / बॉडी: same rate either way — the app still asks, it just doesn't change the price. For नर - 4 दांत only: not-castrated is ₹10/kg less than the rate entered above." data-hi="नर - छोटा / सामान्य / बॉडी के लिए: दोनों में एक जैसी दर — ऐप फिर भी पूछता है, बस कीमत नहीं बदलती। केवल नर - 4 दांत के लिए: गैर-बधिया की दर ऊपर भरी दर से ₹10/kg कम होती है।">नर - छोटा / सामान्य / बॉडी के लिए: दोनों में एक जैसी दर — ऐप फिर भी पूछता है, बस कीमत नहीं बदलती। केवल नर - 4 दांत के लिए: गैर-बधिया की दर ऊपर भरी दर से ₹10/kg कम होती है।</div>
+    <div id="rcMale4TeethUncastratedPreview" style="font-size:12.5px; color:var(--grey-700); line-height:1.7;">—</div>
   </div>
 
   <button class="btn-primary" onclick="saveNewRateCardVersion()" data-en="Update price for all regions" data-hi="सभी क्षेत्रों के लिए कीमत अपडेट करें">सभी क्षेत्रों के लिए कीमत अपडेट करें</button>
@@ -860,9 +866,9 @@ const CATEGORY_LABELS = {
   young_male_small:    { hi: 'नर - छोटा (<20 kg)', en: 'Young male - small (<20 kg)' },
   young_male_regular:  { hi: 'नर - सामान्य (20-27 kg)', en: 'Young male - regular (20-27 kg)' },
   young_male_body:     { hi: 'नर - बॉडी (28+ kg)', en: 'Young male - body (28+ kg)' },
-  male_4teeth:         { hi: 'नर - 4 दांत (20+ kg)', en: 'Male - 4 teeth (20+ kg)' },
-  old_female:          { hi: 'पुरानी मादा - 6-8 दांत (20+ kg)', en: 'Old female - 6-8 teeth (20+ kg)' },
-  female_4teeth:       { hi: 'मादा - 4 दांत (20+ kg)', en: 'Female - 4 teeth (20+ kg)' },
+  male_4teeth:         { hi: 'नर - 4 दांत (18+ kg)', en: 'Male - 4 teeth (18+ kg)' },
+  old_female:          { hi: 'पुरानी मादा - 6-8 दांत (18+ kg)', en: 'Old female - 6-8 teeth (18+ kg)' },
+  female_4teeth:       { hi: 'मादा - 4 दांत (18+ kg)', en: 'Female - 4 teeth (18+ kg)' },
   // Not on the rate card screen — priced from the matching young_male_*
   // rate minus a flat discount (see pricing.js FEMALE_YOUNG_DISCOUNT).
   young_female_small:   { hi: 'मादा - छोटी (<20 kg)', en: 'Young female - small (<20 kg)' },
@@ -2227,19 +2233,24 @@ async function renderRateCardScreen() {
       <div class="field">
         <label>${categoryLabel(cat)}</label>
         <div class="row3">
-          ${RATE_QUALITIES.map(q => `<input type="number" id="rcRate_${cat}_${q}" placeholder="${q}" oninput="updateFemaleYoungPreview()">`).join('')}
+          ${RATE_QUALITIES.map(q => `<input type="number" id="rcRate_${cat}_${q}" placeholder="${q}" oninput="updateRatePreviews()">`).join('')}
         </div>
       </div>`).join('');
     grid.dataset.built = '1';
   }
   await loadCurrentRateCardForEdit();
+  updateRatePreviews();
+}
+
+function updateRatePreviews() {
   updateFemaleYoungPreview();
+  updateMale4TeethUncastratedPreview();
 }
 
 // The female 0-2 teeth rate is never entered directly (see pricing.js
 // FEMALE_YOUNG_DISCOUNT) — this just mirrors whatever's currently typed
-// into the matching male small/regular/body fields, minus ₹20, so it's
-// visible on this screen without being independently editable.
+// into the matching male small/regular/body fields, minus the discount, so
+// it's visible on this screen without being independently editable.
 function updateFemaleYoungPreview() {
   const el = document.getElementById('rcFemaleYoungPreview');
   const rows = [
@@ -2254,6 +2265,19 @@ function updateFemaleYoungPreview() {
     });
     return `<div><strong>${categoryLabel(femaleKey)}:</strong> ${rates.map((r,i) => (r != null ? '₹'+r : '—') + ' ('+RATE_QUALITIES[i]+')').join(' · ')}</div>`;
   }).join('');
+}
+
+// male_4teeth is the one male category where castration still changes the
+// price (see pricing.js UNCASTRATED_DISCOUNT) — the rate typed above is the
+// castrated rate; this mirrors what an uncastrated goat would get, purely
+// for visibility (not independently editable, same idea as the female preview).
+function updateMale4TeethUncastratedPreview() {
+  const el = document.getElementById('rcMale4TeethUncastratedPreview');
+  const rates = RATE_QUALITIES.map(q => {
+    const v = parseFloat(document.getElementById('rcRate_male_4teeth_' + q).value);
+    return isNaN(v) ? null : v - UNCASTRATED_DISCOUNT;
+  });
+  el.innerHTML = `<div><strong>${L('Male, 4 teeth — not castrated: ','नर - 4 दांत — गैर-बधिया: ')}</strong>${rates.map((r,i) => (r != null ? '₹'+r : '—') + ' ('+RATE_QUALITIES[i]+')').join(' · ')}</div>`;
 }
 
 async function loadCurrentRateCardForEdit() {

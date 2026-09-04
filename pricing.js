@@ -30,10 +30,13 @@
 // A female with 0-2 teeth is priced from the matching male young category
 // minus a flat discount (see FEMALE_YOUNG_DISCOUNT) rather than needing 3
 // more rate card entries of her own — rateLookupKey below is which
-// rate_card_lines row actually gets read. Any male category also carries
-// appliesCastration so computeQuote() can apply the uncastrated discount.
-const FEMALE_YOUNG_DISCOUNT = 20; // rupees per kg, below the equivalent male rate
-const UNCASTRATED_DISCOUNT = 10;  // rupees per kg, for any male not castrated
+// rate_card_lines row actually gets read. appliesCastration is only true
+// for male_4teeth (updated 2026-08-23) — a 0-2-teeth male is still asked
+// whether he's castrated (recorded on the goat either way), but it no
+// longer changes his price; a 4-teeth male's price still drops ₹10/kg if
+// he isn't.
+const FEMALE_YOUNG_DISCOUNT = 10; // rupees per kg, below the equivalent male rate (was 20, lowered 2026-08-23)
+const UNCASTRATED_DISCOUNT = 10;  // rupees per kg, for an uncastrated male_4teeth
 
 function classify(sexVal, teethStr, weight) {
   const t = parseInt(teethStr, 10), w = parseFloat(weight);
@@ -44,7 +47,7 @@ function classify(sexVal, teethStr, weight) {
     if (w < 20) { maleKey = 'young_male_small'; femaleKey = 'young_female_small'; }
     else if (w < 28) { maleKey = 'young_male_regular'; femaleKey = 'young_female_regular'; }
     else { maleKey = 'young_male_body'; femaleKey = 'young_female_body'; }
-    if (sexVal === 'male') return { key: maleKey, rateLookupKey: maleKey, appliesCastration: true };
+    if (sexVal === 'male') return { key: maleKey, rateLookupKey: maleKey };
     if (sexVal === 'female') return { key: femaleKey, rateLookupKey: maleKey, femaleDiscount: FEMALE_YOUNG_DISCOUNT };
     return null;
   }
