@@ -516,6 +516,14 @@
   <div class="price-choice-hint" id="priceChoiceHint" style="display:none;" data-en="Tap the price to use for this sale" data-hi="इस बिक्री के लिए इस्तेमाल करने वाला मूल्य चुनें">इस बिक्री के लिए इस्तेमाल करने वाला मूल्य चुनें</div>
 
   <div class="card">
+    <div class="card-title" data-en="Expert price (optional)" data-hi="विशेषज्ञ मूल्य (वैकल्पिक)">विशेषज्ञ मूल्य (वैकल्पिक)</div>
+    <div style="font-size:11px;color:var(--grey-500);margin-bottom:10px;" data-en="If a trader/expert at the camp gives a separate price for this goat, enter it here — the discount is applied automatically, same as the rate card." data-hi="अगर शिविर में किसी व्यापारी/विशेषज्ञ ने इस पशु के लिए अलग मूल्य बताया है, तो यहां दर्ज करें — छूट अपने आप उसी तरह लगेगी जैसे रेट कार्ड में लगती है।">अगर शिविर में किसी व्यापारी/विशेषज्ञ ने इस पशु के लिए अलग मूल्य बताया है, तो यहां दर्ज करें — छूट अपने आप उसी तरह लगेगी जैसे रेट कार्ड में लगती है।</div>
+    <div class="field"><label data-en="Expert price (₹)" data-hi="विशेषज्ञ मूल्य (₹)">विशेषज्ञ मूल्य (₹)</label><input type="number" id="gExpertPrice" min="0" data-ph-en="e.g. 9000" data-ph-hi="जैसे 9000" placeholder="जैसे 9000" oninput="recalcExpertPrice()"></div>
+    <div class="field"><label data-en="Discounted expert price" data-hi="छूट के बाद विशेषज्ञ मूल्य">छूट के बाद विशेषज्ञ मूल्य</label><input type="text" id="gExpertPriceOut" readonly style="background:#F8F8F8;" value="—"></div>
+    <div style="font-size:11.5px;font-weight:600;" id="gExpertPriceNote">—</div>
+  </div>
+
+  <div class="card">
     <div class="card-title" data-en="Household response" data-hi="घर की प्रतिक्रिया">घर की प्रतिक्रिया</div>
     <div class="toggle-group">
       <button class="toggle-btn" id="respInterested" onclick="setResponse('interested')">✅ <span data-en="Interested" data-hi="इच्छुक">इच्छुक</span></button>
@@ -627,6 +635,14 @@
           <option value="formula_only" data-en="Formula only" data-hi="केवल फॉर्मूला">केवल फॉर्मूला</option>
         </select>
         <div style="font-size:11px; color:var(--grey-500); margin-top:4px;" data-en="Applies to every PS immediately — not just this phone" data-hi="तुरंत सभी PS पर लागू होता है — सिर्फ इस फोन पर नहीं">तुरंत सभी PS पर लागू होता है — सिर्फ इस फोन पर नहीं</div>
+      </div>
+      <div class="field" style="margin-top:14px;">
+        <label data-en="Final (official) price" data-hi="अंतिम (आधिकारिक) मूल्य">अंतिम (आधिकारिक) मूल्य</label>
+        <select id="settingsFinalPriceSource" onchange="saveAppFinalPriceSource()">
+          <option value="rate_card" data-en="Rate card price (as today)" data-hi="रेट कार्ड मूल्य (जैसा अभी है)">रेट कार्ड मूल्य (जैसा अभी है)</option>
+          <option value="expert" data-en="Expert price, if entered — else rate card price" data-hi="विशेषज्ञ मूल्य, अगर दर्ज हो — नहीं तो रेट कार्ड मूल्य">विशेषज्ञ मूल्य, अगर दर्ज हो — नहीं तो रेट कार्ड मूल्य</option>
+        </select>
+        <div style="font-size:11px; color:var(--grey-500); margin-top:4px;" data-en="Decides which price is recorded as the goat's official price everywhere (totals, WhatsApp, etc). Applies to every PS immediately." data-hi="यह तय करता है कि हर जगह (कुल योग, WhatsApp आदि) पशु का आधिकारिक मूल्य कौन सा दर्ज होगा। तुरंत सभी PS पर लागू होता है।">यह तय करता है कि हर जगह (कुल योग, WhatsApp आदि) पशु का आधिकारिक मूल्य कौन सा दर्ज होगा। तुरंत सभी PS पर लागू होता है।</div>
       </div>
     </div>
   </div>
@@ -908,7 +924,7 @@ function applyLang() {
   if (activeScreen.id === 'screen-camps') renderHome();
   if (activeScreen.id === 'screen-campdetail') renderCampDetail();
   if (activeScreen.id === 'screen-householddetail') renderHouseholdDetail();
-  if (activeScreen.id === 'screen-newgoat') { recalcAddGoat(); renderGoatProgress(); }
+  if (activeScreen.id === 'screen-newgoat') { recalcAddGoat(); renderGoatProgress(); recalcExpertPrice(); }
   if (activeScreen.id === 'screen-calc') recalcCalc();
   if (activeScreen.id === 'screen-settings') renderSettings();
   if (activeScreen.id === 'screen-goatdetail') renderGoatDetail();
@@ -925,7 +941,7 @@ let goats = store.get('sc_goats', []);
 let pending = store.get('sc_pending', []);
 let rateCache = store.get('sc_rate_cache', {});
 let regionsCache = store.get('sc_regions_cache', []);
-let appSettings = store.get('sc_app_settings', { price_display: 'both' });
+let appSettings = store.get('sc_app_settings', { price_display: 'both', final_price_source: 'rate_card' });
 
 let sex = null, response = null, castrated = null;
 let currentCampId = null, currentHouseholdId = null, currentGoatId = null;
@@ -1104,7 +1120,10 @@ function renderSettings() {
   else failedRow.style.display = 'none';
   document.getElementById('adminLockedBox').style.display = isAdmin ? 'none' : 'block';
   document.getElementById('adminUnlockedBox').style.display = isAdmin ? 'block' : 'none';
-  if (isAdmin) document.getElementById('settingsPriceDisplay').value = appSettings.price_display;
+  if (isAdmin) {
+    document.getElementById('settingsPriceDisplay').value = appSettings.price_display;
+    document.getElementById('settingsFinalPriceSource').value = appSettings.final_price_source || 'rate_card';
+  }
 }
 
 async function saveAppPriceDisplay() {
@@ -1112,6 +1131,15 @@ async function saveAppPriceDisplay() {
   const { error } = await sb.from('app_settings').update({ price_display: value, updated_at: new Date().toISOString() }).eq('id', 1);
   if (error) { showToast(L('⚠️ Could not save — check internet and try again','⚠️ सहेजा नहीं जा सका — इंटरनेट जांचें और फिर कोशिश करें'), false); document.getElementById('settingsPriceDisplay').value = appSettings.price_display; return; }
   appSettings = { ...appSettings, price_display: value };
+  store.set('sc_app_settings', appSettings);
+  showToast(L('✓ Saved — applies to every PS now','✓ सेव हुआ — अभी सभी PS पर लागू'), true);
+}
+
+async function saveAppFinalPriceSource() {
+  const value = document.getElementById('settingsFinalPriceSource').value;
+  const { error } = await sb.from('app_settings').update({ final_price_source: value, updated_at: new Date().toISOString() }).eq('id', 1);
+  if (error) { showToast(L('⚠️ Could not save — check internet and try again','⚠️ सहेजा नहीं जा सका — इंटरनेट जांचें और फिर कोशिश करें'), false); document.getElementById('settingsFinalPriceSource').value = appSettings.final_price_source || 'rate_card'; return; }
+  appSettings = { ...appSettings, final_price_source: value };
   store.set('sc_app_settings', appSettings);
   showToast(L('✓ Saved — applies to every PS now','✓ सेव हुआ — अभी सभी PS पर लागू'), true);
 }
@@ -1169,7 +1197,7 @@ async function refreshRegions() {
 async function refreshAppSettings() {
   if (!sb) return;
   try {
-    const { data, error } = await sb.from('app_settings').select('price_display').eq('id', 1).single();
+    const { data, error } = await sb.from('app_settings').select('price_display, final_price_source').eq('id', 1).single();
     if (!error && data) { appSettings = data; store.set('sc_app_settings', appSettings); }
   } catch (e) {}
 }
@@ -2377,6 +2405,7 @@ function prepAddGoat() {
   document.getElementById('gHg').value = ''; document.getElementById('gBl').value = '';
   document.getElementById('gHg5').value = ''; document.getElementById('gBl5').value = '';
   document.getElementById('gHt5').value = ''; document.getElementById('gRw5').value = ''; document.getElementById('gPg5').value = '';
+  document.getElementById('gExpertPrice').value = '';
   [1,2,3].forEach(i => {
     const preview = document.getElementById('photoPreview'+i);
     if (preview.getAttribute('data-photo')) URL.revokeObjectURL(preview.src); // release the previous form's photo memory
@@ -2414,6 +2443,7 @@ function prepAddGoat() {
 
   renderGoatProgress();
   if (!rateCache[c.region]) refreshRateCard(c.region);
+  recalcExpertPrice();
 }
 
 // "Goat 3 of ~4" — so a PS always knows where she is in this household
@@ -2528,6 +2558,29 @@ function renderPriceCard(prefix, weight, quote) {
   catEl.textContent = categoryLabelFlagged(quote.category.key, quote.category.outOfRange);
   priceEl.textContent = '₹' + fmtNum(quote.finalPrice);
   return true;
+}
+
+// Live preview of the discounted expert price as the PS types — uses the
+// exact same buffer as the rate card for this camp's region, so the number
+// shown here always matches what actually gets saved (see saveGoat()). The
+// note below it always explains what will happen, regardless of the admin's
+// final_price_source setting, so a PS is never guessing which price "counts".
+function recalcExpertPrice() {
+  const out = document.getElementById('gExpertPriceOut');
+  const note = document.getElementById('gExpertPriceNote');
+  const c = camps.find(x => x.id === currentCampId);
+  const rc = c && rateCache[c.region];
+  const discounted = rc ? PricingLib.computeDiscountedExpertPrice(document.getElementById('gExpertPrice').value, rc.buffer) : null;
+  out.value = discounted != null ? ('₹' + fmtNum(discounted)) : '—';
+  if (!rc) {
+    note.textContent = L('Rate card not loaded yet — connect once to see the discount.', 'रेट कार्ड अभी लोड नहीं हुआ — छूट देखने के लिए एक बार इंटरनेट से जुड़ें।');
+  } else if (appSettings.final_price_source === 'expert') {
+    note.textContent = discounted != null
+      ? L("This will be saved as this goat's official price.", 'यह इस पशु के आधिकारिक मूल्य के रूप में सेव होगा।')
+      : L('Left blank: the rate card price above will be used instead.', 'खाली छोड़ने पर: ऊपर वाला रेट कार्ड मूल्य इस्तेमाल होगा।');
+  } else {
+    note.textContent = L('For reference only — the rate card price above stays the official one.', 'सिर्फ रिकॉर्ड के लिए — ऊपर वाला रेट कार्ड मूल्य ही आधिकारिक रहेगा।');
+  }
 }
 
 function updateSaveGoatEnabled() {
@@ -2961,6 +3014,17 @@ async function saveGoat() {
   document.getElementById('btnSaveGoat').disabled = true; // guard against a double tap while photos save
   const photosTaken = Object.keys(capturedPhotos).length;
   const preds = r.predictions;
+  // Expert price is optional and independent of the scale/formula choice
+  // above — it's discounted by the exact same buffer as the rate card
+  // (see pricing.js computeDiscountedExpertPrice), then becomes the goat's
+  // official final_price only if the admin's "Final (official) price"
+  // setting is set to expert AND one was actually entered for this goat —
+  // otherwise the rate card price computed above stays final, automatically.
+  const expertPriceEntered = document.getElementById('gExpertPrice').value;
+  const expertPrice = expertPriceEntered !== '' ? parseFloat(expertPriceEntered) : null;
+  const discountedExpertPrice = PricingLib.computeDiscountedExpertPrice(expertPrice, quote.buffer);
+  const useExpertPrice = appSettings.final_price_source === 'expert' && discountedExpertPrice != null;
+  const finalPrice = useExpertPrice ? discountedExpertPrice : quote.finalPrice;
   const row = {
     id: crypto.randomUUID(), household_id: h.id, camp_id: c.id,
     sex, teeth, quality, weight_kg: chosenWeight, weight_method: 'both',
@@ -2984,7 +3048,8 @@ async function saveGoat() {
     rump_width: parseFloat(document.getElementById('gRw5').value) || null,
     paunch_girth: parseFloat(document.getElementById('gPg5').value) || null,
     ai_quality_suggested: aiSuggestedQuality || null,
-    category: quote.category.key, rate_per_kg: quote.rate, buffer: quote.buffer, final_price: quote.finalPrice,
+    category: quote.category.key, rate_per_kg: quote.rate, buffer: quote.buffer,
+    expert_price: expertPrice, discounted_expert_price: discountedExpertPrice, final_price: finalPrice,
     weight_out_of_range: !!quote.category.outOfRange,
     castrated: sex === 'male' ? castrated : null,
     hh_response: response, photos_taken: photosTaken, ps_name: ps.name,
@@ -3002,7 +3067,7 @@ async function saveGoat() {
   goats.push(row);
   store.set('sc_goats', goats);
   queueWrite('insert', 'goats', row);
-  showGoatSavedOverlay(quote);
+  showGoatSavedOverlay({ ...quote, finalPrice });
 }
 
 // Shown after every save instead of silently jumping back to the household

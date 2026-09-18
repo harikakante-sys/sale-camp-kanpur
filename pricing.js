@@ -88,6 +88,17 @@ function estimateWeightFromMeasurementsF3(hg, bl, pg, rw, h) {
   return 0.001747 * Math.pow(hgIn, 1.825) * Math.pow(blIn, 0.536) * Math.pow(pgIn, 0.059) * Math.pow(rwIn, 0.016) * Math.pow(hIn, 0.503);
 }
 
+// An optional manually-entered price (e.g. from a trader/expert at the camp),
+// discounted by the exact same buffer as the rate card price, so the two are
+// always comparable on equal terms. Returns null for a blank/invalid entry or
+// an unknown buffer, so "nothing entered" is never confused with "discounts
+// to 0" by a caller.
+function computeDiscountedExpertPrice(expertPrice, buffer) {
+  const p = parseFloat(expertPrice);
+  if (isNaN(p) || buffer == null) return null;
+  return Math.round(p * buffer);
+}
+
 // Full price quote for a goat, given the currently-synced rate card for its
 // region. `castrated` only matters for male goats (see classify()'s
 // appliesCastration) — pass null/undefined for females, it's simply ignored.
@@ -107,7 +118,7 @@ function computeQuote(rateCache, region, sexVal, teethStr, weight, quality, cast
 
 // Works both as a plain <script> in the browser (exposes window.PricingLib)
 // and as a Node module for tests (module.exports) — no build step needed.
-const PricingLib = { classify, estimateWeightFromTape, estimateWeightFromMeasurementsF3, computeQuote };
+const PricingLib = { classify, estimateWeightFromTape, estimateWeightFromMeasurementsF3, computeQuote, computeDiscountedExpertPrice };
 if (typeof module !== 'undefined' && module.exports) {
   module.exports = PricingLib;
 } else {
