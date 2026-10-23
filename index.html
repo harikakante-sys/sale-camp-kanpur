@@ -1557,17 +1557,19 @@ function shareHouseholdOnWhatsApp() {
     .slice().sort((a,b) => new Date(a.created_at || 0) - new Date(b.created_at || 0));
   if (!hGoats.length) { showToast(L('⚠️ No animals added yet','⚠️ अभी कोई पशु नहीं जोड़ा गया'), false); return; }
 
-  const respLabelsWa = { interested: L('Interested','इच्छुक'), awaited: L('Awaited decision','सोच रहे'), not_interested: L('Not interested','अनिच्छुक') };
+  // Deliberately only sex, teeth and price — no weight, measurements,
+  // quality or response — since this goes to the household itself.
   const lines = [];
   lines.push(L('Goat sale price details','पशु बिक्री मूल्य विवरण'));
   lines.push(h.hh_name);
   lines.push('—————————');
   hGoats.forEach((g, i) => {
-    lines.push(`${i+1}. ${categoryLabelFlagged(g.category, g.weight_out_of_range)} · ${g.quality} ${L('quality','क्वालिटी')} · ${Math.round(g.weight_kg)} kg · ₹${fmtNum(g.final_price)} · ${respLabelsWa[g.hh_response]||g.hh_response}`);
+    const sexLabel = g.sex === 'male' ? L('Male','नर') : L('Female','मादा');
+    lines.push(`${i+1}. ${sexLabel} · ${g.teeth} ${L('teeth','दांत')} · ₹${fmtNum(g.final_price)}`);
   });
   lines.push('—————————');
-  const total = hGoats.filter(g => g.hh_response === 'interested').reduce((s,g) => s + g.final_price, 0);
-  lines.push(L('Total (Interested): ','कुल (इच्छुक): ') + '₹' + fmtNum(total));
+  const total = hGoats.reduce((s,g) => s + g.final_price, 0);
+  lines.push(L('Total: ','कुल: ') + '₹' + fmtNum(total));
   const text = encodeURIComponent(lines.join('\n'));
 
   const url = (h.mobile && /^\d{10}$/.test(h.mobile))
