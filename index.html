@@ -280,7 +280,8 @@
     <button class="btn-secondary" onclick="shareInterestedListOnWhatsApp()">📲 <span data-en="Share list" data-hi="सूची भेजें">सूची भेजें</span></button>
     <button class="btn-secondary" onclick="downloadInterestedList()">⬇️ <span data-en="Download list" data-hi="सूची डाउनलोड करें">सूची डाउनलोड करें</span></button>
   </div>
-  <button class="btn-secondary" id="cdDownloadAllBtn" style="display:none; margin-top:8px;" onclick="downloadCampHouseholdsCsv()">📊 <span data-en="Download all households (CSV)" data-hi="सभी घर डाउनलोड करें (CSV)">सभी घर डाउनलोड करें (CSV)</span></button>
+  <button class="btn-secondary" id="cdDownloadYesBtn" style="display:none; margin-top:8px;" onclick="downloadCampHouseholdsCsv(true)">📊 <span data-en="Download interested households (CSV)" data-hi="इच्छुक घर डाउनलोड करें (CSV)">इच्छुक घर डाउनलोड करें (CSV)</span></button>
+  <button class="btn-secondary" id="cdDownloadAllBtn" style="display:none; margin-top:8px;" onclick="downloadCampHouseholdsCsv(false)">📊 <span data-en="Download all households (CSV)" data-hi="सभी घर डाउनलोड करें (CSV)">सभी घर डाउनलोड करें (CSV)</span></button>
   <button class="btn-primary" id="cdAddHhBtn" onclick="showScreen('newhousehold')" style="margin-top:6px;">➕ <span data-en="Add household" data-hi="घर जोड़ें">घर जोड़ें</span></button>
   <button class="btn-secondary" id="cdCompleteCampBtn" onclick="showScreen('campcomplete')">✅ <span data-en="Complete camp" data-hi="शिविर पूरा करें">शिविर पूरा करें</span></button>
 </div>
@@ -1376,6 +1377,7 @@ function renderCampDetail() {
   document.getElementById('cdInterestedValue').textContent = '₹' + fmtNum(interestedValue);
   document.getElementById('cdInterestedListActions').style.display = gs.some(g => g.hh_response === 'interested') ? 'flex' : 'none';
   document.getElementById('cdDownloadAllBtn').style.display = hhs.length ? 'block' : 'none';
+  document.getElementById('cdDownloadYesBtn').style.display = gs.some(g => g.hh_response === 'interested') ? 'block' : 'none';
 
   const isCompleted = c.status === 'completed';
   document.getElementById('cdCompletedStatus').style.display = isCompleted ? 'flex' : 'none';
@@ -1645,26 +1647,22 @@ function csvCell(val) {
 
 const RESP_LABELS_CSV = { interested: 'Interested / इच्छुक', awaited: 'Awaited / सोच रहे', not_interested: 'Not interested / अनिच्छुक' };
 
-// One row per goat, plus one row for any household with zero goats added
-// yet — this is "every household in the camp", not just the interested
-// ones (that's what buildCampInterestedListText() is for). A flat table
-// like this is what's actually useful to filter/sort in Excel, rather
-// than the grouped text format used for the WhatsApp share.
-function downloadCampHouseholdsCsv() {
-  const c = camps.find(x => x.id === currentCampId);
-  if (!c) return;
-  const hhs = households.filter(h => h.camp_id === c.id);
-  if (!hhs.length) { showToast(L('⚠️ No households in this camp yet','⚠️ इस शिविर में अभी कोई घर नहीं'), false); return; }
+const HOUSEHOLD_CSV_HEADER = ['Village','Camp date','PS name','Household name','Mobile','Expected goats','Goat #','Category','Castrated?','Quality','Weight (kg)','Price (₹)','Response','Pickup weight (kg)','Mandi weight (kg)','Mandi price (₹)'];
 
-  const header = ['Village','Camp date','PS name','Household name','Mobile','Expected goats','Goat #','Category','Castrated?','Quality','Weight (kg)','Price (₹)','Response','Pickup weight (kg)','Mandi weight (kg)','Mandi price (₹)'];
-  const rows = [header];
+// One row per goat, plus one row for any household with zero goats added
+// yet. A flat table like this is what's actually useful to filter/sort in
+// Excel, rather than the grouped text format used for the WhatsApp share.
+// entries: [{ camp, hh, goats }] — shared by the camp screen and the admin
+// dashboard so both produce exactly the same columns.
+function householdsCsvText(entries) {
+  const rows = [HOUSEHOLD_CSV_HEADER];
   const castratedLabel = (g) => g.castrated == null ? '' : (g.castrated ? 'Castrated' : 'Not castrated');
-  hhs.forEach(h => {
-    const hGoats = goats.filter(g => g.household_id === h.id).slice().sort((a,b) => new Date(a.created_at||0) - new Date(b.created_at||0));
-    if (!hGoats.length) {
+  entries.forEach(({ camp: c, hh: h, goats: hGoats }) => {
+    const sorted = hGoats.slice().sort((a,b) => new Date(a.created_at||0) - new Date(b.created_at||0));
+    if (!sorted.length) {
       rows.push([c.village_name, c.camp_date, c.ps_name, h.hh_name, h.mobile||'', h.expected_goat_count||'', '', '', '', '', '', '', '', '', '', '']);
     } else {
-      hGoats.forEach((g, i) => {
+      sorted.forEach((g, i) => {
         rows.push([
           c.village_name, c.camp_date, c.ps_name, h.hh_name, h.mobile||'', h.expected_goat_count||'',
           i+1, categoryLabelFlagged(g.category, g.weight_out_of_range), castratedLabel(g), g.quality||'', Math.round(g.weight_kg), g.final_price,
@@ -1674,16 +1672,38 @@ function downloadCampHouseholdsCsv() {
       });
     }
   });
-  const csv = rows.map(row => row.map(csvCell).join(',')).join('\r\n');
+  return rows.map(row => row.map(csvCell).join(',')).join('\r\n');
+}
+
+function saveCsvFile(csv, filename) {
   const blob = new Blob([csv], { type: 'text/csv;charset=utf-8;' });
   const url = URL.createObjectURL(blob);
   const a = document.createElement('a');
   a.href = url;
-  a.download = `households-${(c.village_name||'camp').replace(/[^a-zA-Z0-9]+/g,'-')}-${c.camp_date}.csv`;
+  a.download = filename;
   document.body.appendChild(a);
   a.click();
   document.body.removeChild(a);
   URL.revokeObjectURL(url);
+}
+
+// onlyInterested=true: just the households that said yes, and only their
+// "Interested" goats (same definition as the WhatsApp/text list). false:
+// every household in the camp, every goat.
+function downloadCampHouseholdsCsv(onlyInterested) {
+  const c = camps.find(x => x.id === currentCampId);
+  if (!c) return;
+  let entries = households.filter(h => h.camp_id === c.id).map(h => ({
+    camp: c, hh: h,
+    goats: goats.filter(g => g.household_id === h.id && (!onlyInterested || g.hh_response === 'interested'))
+  }));
+  if (onlyInterested) entries = entries.filter(e => e.goats.length);
+  if (!entries.length) {
+    showToast(onlyInterested ? L('⚠️ No interested households to download yet','⚠️ अभी डाउनलोड करने के लिए कोई इच्छुक घर नहीं') : L('⚠️ No households in this camp yet','⚠️ इस शिविर में अभी कोई घर नहीं'), false);
+    return;
+  }
+  const base = (onlyInterested ? 'interested-households-' : 'households-') + (c.village_name||'camp').replace(/[^a-zA-Z0-9]+/g,'-') + '-' + c.camp_date;
+  saveCsvFile(householdsCsvText(entries), base + '.csv');
 }
 
 function setGoatResponse(id, resp) {
@@ -1951,6 +1971,7 @@ function updateShrinkageDisplay() {
    the data the rest of the app uses for "my camps". */
 let adminCamps = [], adminHouseholds = [], adminGoats = [];
 let adminViewInterestedGoats = [], adminViewZeroGoatHouseholds = [], adminViewHhById = {}, adminViewCampById = {}, adminViewFilterLabel = '';
+let adminViewHhInView = [], adminViewGoatsInView = [];
 
 async function refreshAdminData(fromStr, toStr) {
   if (!sb) return false;
@@ -2016,6 +2037,8 @@ async function renderAdminDashboard() {
   const interestedGoats = goatsInView.filter(g => g.hh_response === 'interested');
   const interestedValue = interestedGoats.reduce((s,g) => s + g.final_price, 0);
   const interestedHhIds = new Set(interestedGoats.map(g => g.household_id));
+  const sexSplit = (list) => ({ male: list.filter(g => g.sex === 'male').length, female: list.filter(g => g.sex === 'female').length });
+  const splitText = (s) => L('Male','नर') + ' ' + s.male + ' · ' + L('Female','मादा') + ' ' + s.female;
 
   // What the goat-list section (and the share/download buttons below it)
   // actually shows — either just the "said yes" households (existing
@@ -2030,14 +2053,18 @@ async function renderAdminDashboard() {
     const psCampIds = new Set(campsInView.filter(c => c.ps_name === name).map(c => c.id));
     const psHh = hhInView.filter(h => psCampIds.has(h.camp_id));
     const psGoats = goatsInView.filter(g => psCampIds.has(g.camp_id));
-    const psInterestedHhIds = new Set(psGoats.filter(g => g.hh_response === 'interested').map(g => g.household_id));
+    const psInterestedGoats = psGoats.filter(g => g.hh_response === 'interested');
+    const psInterestedHhIds = new Set(psInterestedGoats.map(g => g.household_id));
     return {
       name,
       camps: psCampIds.size,
       households: psHh.length,
       interestedHouseholds: psInterestedHhIds.size,
       goats: psGoats.length,
-      interestedValue: psGoats.filter(g => g.hh_response === 'interested').reduce((s,g) => s + g.final_price, 0)
+      goatSplit: sexSplit(psGoats),
+      interestedGoats: psInterestedGoats.length,
+      interestedGoatSplit: sexSplit(psInterestedGoats),
+      interestedValue: psInterestedGoats.reduce((s,g) => s + g.final_price, 0)
     };
   });
 
@@ -2051,6 +2078,8 @@ async function renderAdminDashboard() {
   // can build the same list the admin is currently looking at (respecting the
   // PS + date + "देखें" filters above) without recomputing it themselves.
   adminViewInterestedGoats = goatsForList;
+  adminViewHhInView = hhInView;
+  adminViewGoatsInView = goatsInView;
   adminViewZeroGoatHouseholds = zeroGoatHhInList;
   adminViewHhById = hhById;
   adminViewCampById = campById;
@@ -2064,12 +2093,22 @@ async function renderAdminDashboard() {
       <div class="summary-item"><strong>${totalHh}</strong><span>${L('Households','घर')}</span></div>
       <div class="summary-item"><strong>${totalGoats}</strong><span>${L('Goats','पशु')}</span></div>
       <div class="summary-item"><strong>${interestedHhIds.size}</strong><span>${L('Interested HH','इच्छुक घर')}</span></div>
+      <div class="summary-item"><strong>${interestedGoats.length}</strong><span>${L('Interested goats','इच्छुक पशु')}</span></div>
       <div class="summary-item"><strong>₹${fmtNum(interestedValue)}</strong><span>${L('Interested value','इच्छुक मूल्य')}</span></div>
     </div>
+    <div class="card" style="margin-bottom:14px; padding:12px 14px; font-size:13px; line-height:1.8;">
+      <div><strong>${L('All goats (weighed)','सभी पशु (तौले गए)')}: ${totalGoats}</strong> — ${splitText(sexSplit(goatsInView))}</div>
+      <div><strong>${L('Said yes','इच्छुक पशु')}: ${interestedGoats.length}</strong> — ${splitText(sexSplit(interestedGoats))}</div>
+    </div>
     ${(goatsForList.length || zeroGoatHhInList.length) ? `
-    <div class="row2" style="gap:8px; margin-bottom:14px;">
+    <div class="row2" style="gap:8px; margin-bottom:8px;">
       <button class="btn-secondary" onclick="shareAdminInterestedListOnWhatsApp()">📲 <span data-en="Share list" data-hi="सूची भेजें">सूची भेजें</span></button>
       <button class="btn-secondary" onclick="downloadAdminInterestedList()">⬇️ <span data-en="Download list" data-hi="सूची डाउनलोड करें">सूची डाउनलोड करें</span></button>
+    </div>` : ''}
+    ${totalHh ? `
+    <div class="row2" style="gap:8px; margin-bottom:14px;">
+      <button class="btn-secondary" onclick="downloadAdminHouseholdsCsv(true)">📊 <span data-en="Interested households (CSV)" data-hi="इच्छुक घर (CSV)">इच्छुक घर (CSV)</span></button>
+      <button class="btn-secondary" onclick="downloadAdminHouseholdsCsv(false)">📊 <span data-en="All households (CSV)" data-hi="सभी घर (CSV)">सभी घर (CSV)</span></button>
     </div>` : ''}
     ${perPs.map(p => `
       <div class="list-card">
@@ -2079,7 +2118,11 @@ async function renderAdminDashboard() {
           <div><div class="list-card-stat-label">${L('Interested HH','इच्छुक घर')}</div><div class="list-card-stat-value">${p.interestedHouseholds}</div></div>
           <div><div class="list-card-stat-label">${L('Goats','पशु')}</div><div class="list-card-stat-value">${p.goats}</div></div>
         </div>
-        <div style="margin-top:8px; font-size:12.5px; color:var(--grey-500);">${L('Interested value','इच्छुक मूल्य')}: <strong style="color:var(--green-dark);">₹${fmtNum(p.interestedValue)}</strong></div>
+        <div style="margin-top:8px; font-size:12.5px; color:var(--grey-500); line-height:1.7;">
+          <div>${L('All goats','सभी पशु')}: ${splitText(p.goatSplit)}</div>
+          <div>${L('Said yes','इच्छुक पशु')}: <strong>${p.interestedGoats}</strong> — ${splitText(p.interestedGoatSplit)}</div>
+          <div>${L('Interested value','इच्छुक मूल्य')}: <strong style="color:var(--green-dark);">₹${fmtNum(p.interestedValue)}</strong></div>
+        </div>
       </div>`).join('') || '<div class="empty-state">' + L('No camps in this range','इस सीमा में कोई शिविर नहीं') + '</div>'}
 
     <div class="card-title" style="margin-top:18px;">${filterView === 'all' ? L('All households — tap a goat to record pickup/mandi weight','सभी घर — पिकअप/मंडी वजन दर्ज करने के लिए किसी पशु पर टैप करें') : L('Interested goats — tap to record pickup/mandi weight','इच्छुक पशु — पिकअप/मंडी वजन दर्ज करने के लिए टैप करें')}</div>
@@ -2187,6 +2230,22 @@ function downloadAdminInterestedList() {
   a.click();
   document.body.removeChild(a);
   URL.revokeObjectURL(url);
+}
+
+// CSV of whatever PS + date range the admin dashboard is showing. Same
+// columns as the camp screen's CSV. onlyInterested=true ignores the "देखें"
+// dropdown on purpose, so "households who said yes" is always one tap away.
+function downloadAdminHouseholdsCsv(onlyInterested) {
+  let entries = adminViewHhInView.map(h => ({
+    camp: adminViewCampById[h.camp_id], hh: h,
+    goats: adminViewGoatsInView.filter(g => g.household_id === h.id && (!onlyInterested || g.hh_response === 'interested'))
+  })).filter(e => e.camp);
+  if (onlyInterested) entries = entries.filter(e => e.goats.length);
+  if (!entries.length) {
+    showToast(onlyInterested ? L('⚠️ No interested households to download yet','⚠️ अभी डाउनलोड करने के लिए कोई इच्छुक घर नहीं') : L('⚠️ No households in this range','⚠️ इस सीमा में कोई घर नहीं'), false);
+    return;
+  }
+  saveCsvFile(householdsCsvText(entries), (onlyInterested ? 'interested-households-' : 'households-') + new Date().toISOString().slice(0,10) + '.csv');
 }
 
 /* ═══════════════════════ MANAGE PS (admin-only) ═══════════════════════
